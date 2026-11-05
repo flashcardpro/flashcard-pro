@@ -154,7 +154,7 @@ async function api(url: string, init: RequestInit = {}): Promise<Response> {
   if (!hasValidToken()) throw new DriveAuthError('token-expired');
   const r = await fetch(url, { ...init, headers: { ...(init.headers || {}), Authorization: 'Bearer ' + token!.value } });
   if (r.status === 401) {
-    token = null;
+    clearToken();
     throw new DriveAuthError('token-expired');
   }
   if (!r.ok) {
@@ -293,6 +293,65 @@ export async function uploadShare(blob: Blob, fileName: string, existingId?: str
   return id!;
 }
 
+// ---------- live shared decks ----------
+const SHARED_MIME = 'application/json';
+
+export function currentToken(): string | null {
+  return hasValidToken() ? token!.value : null;
+}
+
+export function pickerAppId(): string {
+  const c = driveConfig();
+  return (c as { googleAppId?: string }).googleAppId || (c.googleClientId || '').split('-')[0];
+}
+
+/** Creates the shared deck file in the owner's "Shared decks" folder and opens it to anyone with the link. */
+export async function createSharedDeckFile(json: string, name: string, role: 'reader' | 'writer'): Promise<string> {
+  const parent = await folder('shared');
+  const mp = multipart({ name, parents: [parent], mimeType: SHARED_MIME, appProperties: { fcp: 'sharedDeck' } }, new Blob([json], { type: SHARED_MIME }), SHARED_MIME);
+  const r = await api(`${UPLOAD}/files?uploadType=multipart&fields=id`, { method: 'POST', headers: { 'Content-Type': mp.type }, body: mp.body });
+  const id = (await r.json()).id as string;
+  await setLinkRole(id, role);
+  return id;
+}
+
+export async function updateSharedDeckFile(fileId: string, json: string) {
+  await api(`${UPLOAD}/files/${fileId}?uploadType=media&fields=id`, { method: 'PATCH', headers: { 'Content-Type': SHARED_MIME }, body: json });
+}
+
+/** Anyone with the link can view (reader) or edit (writer). */
+export async function setLinkRole(fileId: string, role: 'reader' | 'writer') {
+  try {
+    await api(`${API}/files/${fileId}/permissions/anyoneWithLink?fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role }) });
+  } catch (e) {
+    if (e instanceof DriveAuthError) throw e;
+    await api(`${API}/files/${fileId}/permissions?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role, type: 'anyone' }) });
+  }
+}
+
+/** Makes one photo or voice note readable by anyone with its id, so people you share with can load it. */
+export async function makeFilePublic(fileId: string): Promise<boolean> {
+  try {
+    await api(`${API}/files/${fileId}/permissions?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'reader', type: 'anyone' }) });
+    return true;
+  } catch (e) {
+    if (e instanceof DriveAuthError) throw e;
+    return false;
+  }
+}
+
+/** True when this account's sign-in can already read and write the file. */
+export async function canEditFile(fileId: string): Promise<boolean> {
+  try {
+    const r = await api(`${API}/files/${fileId}?fields=id,capabilities(canEdit)`);
+    const j = await r.json();
+    return !!j.capabilities?.canEdit;
+  } catch (e) {
+    if (e instanceof DriveAuthError) throw e;
+    return false;
+  }
+}
+
 export async function stopSharing(fileId: string) {
   await api(`${API}/files/${fileId}/permissions/anyoneWithLink`, { method: 'DELETE' });
 }
@@ -302,7 +361,7 @@ export async function fetchPublicFile(fileId: string): Promise<Blob> {
   const key = driveConfig().googleApiKey;
   if (!/^[\w-]{10,}$/.test(fileId)) throw new Error('This share link is not valid.');
   if (key) {
-    const r = await fetch(`${API}/files/${fileId}?alt=media&key=${encodeURIComponent(key)}`);
+    const r = await fetch(`${API}/files/${fileId}?alt=media&key=${encodeURIComponent(key)}`, { cache: 'no-store' });
     if (r.ok) return r.blob();
     if (r.status === 404 || r.status === 403) throw new Error('This deck is no longer shared, or the link is wrong.');
   }

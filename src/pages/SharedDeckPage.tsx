@@ -1,61 +1,207 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, PackageOpen, AlertTriangle, Layers } from 'lucide-react';
+import { Loader2, PackageOpen, AlertTriangle, Layers, Eye, PencilLine, Users, CopyPlus, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { fetchPublicFile } from '../lib/drive';
-import { readBundle, importBundle, type ParsedBundle } from '../lib/bundle';
+import { fetchPublicFile, hasValidToken } from '../lib/drive';
+import { importBundle, type ParsedBundle } from '../lib/bundle';
 import { primeMediaUrl } from '../lib/media';
 import { useT } from '../lib/i18n';
 import { navigate } from '../lib/router';
+import { useStore } from '../lib/store';
+import { addSharedCopy, followSharedDeck, joinSharedDeck, readSharedLink } from '../lib/share';
+import type { SharedPackage } from '../lib/sharedDeck';
+import type { Note } from '../lib/types';
 import { Button, Empty } from '../components/ui';
 import { CardImage } from '../components/CardImage';
 import { RichHtml } from '../components/RichHtml';
 import { noteTitle } from '../lib/cards';
 import { LogoMark } from '../components/Logo';
+import { useSignIn } from '../components/SignIn';
 
-export function SharedDeckPage({ fileId }: { fileId: string }) {
+const PAGE = 24;
+
+/** A few cards to look at before adding the deck. Photos load straight from the shared link. */
+function Preview({ notes, photoFor }: { notes: Note[]; photoFor: (mediaId: string) => Promise<Blob | null> }) {
   const t = useT();
-  const [parsed, setParsed] = useState<ParsedBundle | null>(null);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [shown, setShown] = useState(PAGE);
+  const [ready, setReady] = useState<Set<string>>(() => new Set());
+  const visible = notes.slice(0, shown);
 
   useEffect(() => {
     let alive = true;
+    const ids = visible.map((n) => n.image?.mediaId).filter((x): x is string => !!x && !ready.has(x));
     (async () => {
-      try {
-        const blob = await fetchPublicFile(fileId);
-        const p = await readBundle(blob);
-        // Show photos straight from the downloaded file for the preview.
-        for (const [id, b] of p.files) primeMediaUrl('preview-' + id, b);
-        if (alive) setParsed(p);
-      } catch (e) {
-        if (alive) setError((e as Error).message);
+      for (const id of ids) {
+        const blob = await photoFor(id).catch(() => null);
+        if (!alive) return;
+        if (blob) {
+          primeMediaUrl('preview-' + id, blob);
+          setReady((r) => new Set(r).add(id));
+        }
       }
     })();
     return () => {
       alive = false;
     };
-  }, [fileId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown, notes]);
 
-  const root = parsed?.bundle.decks.find((d) => parsed.bundle.rootIds.includes(d.id)) || parsed?.bundle.decks[0];
-  const sample = useMemo(() => (parsed ? parsed.bundle.notes.slice(0, 6) : []), [parsed]);
+  return (
+    <>
+      <h2 className="section-title">{t('Cards in this deck')}</h2>
+      <ul className="card-grid">
+        {visible.map((n) => (
+          <li key={n.id}>
+            <article className="card-tile">
+              {n.image && (
+                <div className="tile-photo">
+                  {ready.has(n.image.mediaId) ? (
+                    <CardImage image={{ ...n.image, mediaId: 'preview-' + n.image.mediaId }} view={n.type === 'occlusion' ? { mode: 'all' } : { mode: 'none' }} />
+                  ) : (
+                    <div className="tile-photo-wait">
+                      <Loader2 size={20} className="spin" />
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="tile-body">{noteTitle(n) ? <p className="tile-title">{noteTitle(n)}</p> : <RichHtml html={n.front} className="tile-title" />}</div>
+            </article>
+          </li>
+        ))}
+      </ul>
+      {notes.length > shown && (
+        <div className="center-row">
+          <Button onClick={() => setShown((s) => s + PAGE * 2)}>{t('Show more cards ({n} left)', { n: notes.length - shown })}</Button>
+        </div>
+      )}
+    </>
+  );
+}
 
-  if (error) {
-    return (
-      <div className="page">
-        <Empty icon={<AlertTriangle size={32} />} title={t('This shared deck could not be opened')} action={<Button onClick={() => navigate('/')}>{t('Go home')}</Button>}>
-          {error}
-        </Empty>
-      </div>
-    );
+function ErrorView({ message }: { message: string }) {
+  const t = useT();
+  return (
+    <div className="page">
+      <Empty icon={<AlertTriangle size={32} />} title={t('This shared deck could not be opened')} action={<Button onClick={() => navigate('/')}>{t('Go home')}</Button>}>
+        {message}
+      </Empty>
+    </div>
+  );
+}
+
+function LiveShared({ fileId, pkg }: { fileId: string; pkg: SharedPackage }) {
+  const t = useT();
+  const user = useStore((s) => s.user);
+  const joined = useStore((s) => Object.values(s.lib.decks).find((d) => d.share?.fileId === fileId) || null);
+  const editable = pkg.mode === 'edit';
+  // Someone who only followed the deck can still join in once the owner lets people edit.
+  const joinedId = joined && !(editable && joined.share?.role === 'viewer') ? joined.id : null;
+  const [busy, setBusy] = useState<'' | 'edit' | 'follow' | 'copy'>('');
+  const signIn = useSignIn();
+  const root = pkg.decks.find((d) => d.id === pkg.rootId) || pkg.decks[0];
+  const photos = Object.values(pkg.media).filter((m) => m.mime.startsWith('image/')).length;
+
+  async function ensureSignedIn(): Promise<boolean> {
+    if (user && hasValidToken()) return true;
+    if (user) {
+      const { reconnect } = await import('../lib/sync');
+      try {
+        await reconnect();
+        return hasValidToken();
+      } catch {
+        return false;
+      }
+    }
+    return signIn.run();
   }
-  if (!parsed || !root) {
-    return (
-      <div className="page center-page">
-        <Loader2 size={30} className="spin" />
-        <p>{t('Opening shared deck...')}</p>
-      </div>
-    );
+
+  async function act(kind: 'edit' | 'follow' | 'copy') {
+    setBusy(kind);
+    try {
+      if (kind === 'edit') {
+        if (!(await ensureSignedIn())) return;
+        const id = await joinSharedDeck(fileId, pkg);
+        toast.success(t('You can now edit this deck together. Changes sync both ways.'));
+        navigate('/deck/' + id);
+      } else if (kind === 'follow') {
+        const id = followSharedDeck(fileId, pkg);
+        toast.success(t('Deck added. You will get changes from the owner.'));
+        navigate('/deck/' + id);
+      } else {
+        const id = await addSharedCopy(pkg);
+        toast.success(t('A copy was added to your library.'));
+        navigate('/deck/' + id);
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy('');
+    }
   }
+
+  return (
+    <div className="page shared-page">
+      <header className={`deck-head deck-${root?.color || 'blue'}`}>
+        <div className="deck-head-band" />
+        <div className="deck-head-body">
+          <p className="shared-from">
+            <LogoMark size={20} /> {t('Someone shared a deck with you')}
+          </p>
+          <h1 className="deck-title">{root?.name || t('Shared deck')}</h1>
+          {root?.description && <p className="muted">{root.description}</p>}
+          <p className="muted">
+            <Layers size={15} className="inline-icon" /> {t('{n} cards', { n: pkg.notes.length })}
+            {photos > 0 && <>, {t('{n} photos', { n: photos })}</>}
+          </p>
+          <p>
+            <span className="shared-mode-chip">
+              {editable ? <PencilLine size={14} /> : <Eye size={14} />} {editable ? t('Anyone with the link can edit') : t('Anyone with the link can view')}
+            </span>
+          </p>
+          <div className="shared-actions">
+            {joinedId ? (
+              <Button variant="primary" size="lg" icon={<ArrowRight size={18} />} onClick={() => navigate('/deck/' + joinedId)}>
+                {t('Open deck')}
+              </Button>
+            ) : editable ? (
+              <Button variant="primary" size="lg" icon={<Users size={18} />} disabled={!!busy} onClick={() => act('edit')}>
+                {busy === 'edit' ? t('Joining...') : t('Edit together')}
+              </Button>
+            ) : (
+              <Button variant="primary" size="lg" icon={<PackageOpen size={18} />} disabled={!!busy} onClick={() => act('follow')}>
+                {busy === 'follow' ? t('Adding...') : t('Add to my decks')}
+              </Button>
+            )}
+            {joined && !joinedId && (
+              <Button variant="ghost" icon={<ArrowRight size={16} />} onClick={() => navigate('/deck/' + joined.id)}>
+                {t('Open deck')}
+              </Button>
+            )}
+            <Button variant="ghost" icon={<CopyPlus size={16} />} disabled={!!busy} onClick={() => act('copy')}>
+              {busy === 'copy' ? t('Adding...') : t('Add a separate copy')}
+            </Button>
+          </div>
+          <p className="muted small shared-note">
+            {joinedId
+              ? t('This deck is already in your library and stays in sync with this link.')
+              : editable
+                ? t('Edit together: sign in with Google. Your edits show up for everyone with the link, and theirs for you. Google may ask you to select the deck once so Flashcard Pro can save to it.')
+                : t('Add to my decks: you study the cards and get changes from the owner. Your study progress stays private.')}{' '}
+            {t('A separate copy is all yours and never changes with the original.')}
+          </p>
+        </div>
+      </header>
+      <Preview notes={pkg.notes} photoFor={async (id) => (pkg.media[id]?.driveId ? fetchPublicFile(pkg.media[id].driveId!) : null)} />
+      {signIn.dialogs}
+    </div>
+  );
+}
+
+function CopyShared({ parsed }: { parsed: ParsedBundle }) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const root = parsed.bundle.decks.find((d) => parsed.bundle.rootIds.includes(d.id)) || parsed.bundle.decks[0];
+  const files = parsed.files;
+  if (!root) return <ErrorView message={t('This link is not a Flashcard Pro deck.')} />;
   return (
     <div className="page shared-page">
       <header className={`deck-head deck-${root.color}`}>
@@ -88,21 +234,39 @@ export function SharedDeckPage({ fileId }: { fileId: string }) {
           <p className="muted small">{t('A copy is added to your library. Changes you make do not affect the original.')}</p>
         </div>
       </header>
-      <h2 className="section-title">{t('A few cards from this deck')}</h2>
-      <ul className="card-grid">
-        {sample.map((n) => (
-          <li key={n.id}>
-            <article className="card-tile">
-              {n.image && (
-                <div className="tile-photo">
-                  <CardImage image={{ ...n.image, mediaId: 'preview-' + n.image.mediaId }} view={n.type === 'occlusion' ? { mode: 'all' } : { mode: 'none' }} />
-                </div>
-              )}
-              <div className="tile-body">{noteTitle(n) ? <p className="tile-title">{noteTitle(n)}</p> : <RichHtml html={n.front} className="tile-title" />}</div>
-            </article>
-          </li>
-        ))}
-      </ul>
+      <Preview notes={parsed.bundle.notes} photoFor={async (id) => files.get(id) || null} />
     </div>
   );
+}
+
+export function SharedDeckPage({ fileId }: { fileId: string }) {
+  const t = useT();
+  const [link, setLink] = useState<Awaited<ReturnType<typeof readSharedLink>> | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    readSharedLink(fileId)
+      .then((l) => alive && setLink(l))
+      .catch((e) => alive && setError((e as Error).message));
+    return () => {
+      alive = false;
+    };
+  }, [fileId]);
+
+  const view = useMemo(() => {
+    if (!link) return null;
+    return link.kind === 'live' ? <LiveShared fileId={fileId} pkg={link.pkg} /> : <CopyShared parsed={link.parsed} />;
+  }, [link, fileId]);
+
+  if (error) return <ErrorView message={error} />;
+  if (!view) {
+    return (
+      <div className="page center-page">
+        <Loader2 size={30} className="spin" />
+        <p>{t('Opening shared deck...')}</p>
+      </div>
+    );
+  }
+  return view;
 }

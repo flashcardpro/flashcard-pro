@@ -116,6 +116,7 @@ export async function syncNow(): Promise<boolean> {
       again = true;
     }
     useStore.getState().setSync({ syncStatus: 'synced', lastSyncedAt: Date.now() });
+    shareSoon();
     return true;
   } catch (e) {
     if (e instanceof DriveAuthError) {
@@ -135,10 +136,18 @@ export async function syncNow(): Promise<boolean> {
   }
 }
 
+/** Decks shared by link sync on their own, after your library is safely saved. */
+function shareSoon(force = false) {
+  void import('./share').then((m) => m.syncSharedDecks({ force }));
+}
+
 let started = false;
 export function startSyncLoop() {
   if (started) return;
   started = true;
+  // Followers of a view-only link may not be signed in, so shared decks also check on their own.
+  window.addEventListener('focus', () => shareSoon(true));
+  setTimeout(() => !useStore.getState().user && shareSoon(true), 1500);
   useStore.subscribe((s, prev) => {
     if (s.user && s.dirty && (s.lib !== prev.lib || !prev.dirty)) scheduleSync(3500);
   });
@@ -152,6 +161,7 @@ export function startSyncLoop() {
   setInterval(() => {
     const s = useStore.getState();
     if (s.user && hasValidToken()) void syncNow();
+    else shareSoon();
     // Renew the key on your next click a few minutes before it runs out, so saving never pauses.
     if (s.user && tokenExpiresAt() - Date.now() < 6 * 60_000) armAutoReconnect();
   }, 60_000);

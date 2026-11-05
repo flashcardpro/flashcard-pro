@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getMediaBlob, putMediaBlob } from './db';
-import { downloadBlob as driveDownload, hasValidToken } from './drive';
+import { downloadBlob as driveDownload, fetchPublicFile, hasValidToken, isShareConfigured } from './drive';
 import { getLib } from './store';
 
 const urls = new Map<string, string>();
@@ -10,12 +10,22 @@ export async function getMediaBlobAny(id: string): Promise<Blob | null> {
   const local = await getMediaBlob(id);
   if (local) return local;
   const meta = getLib().media[id];
-  if (meta?.driveId && hasValidToken()) {
+  if (!meta?.driveId) return null;
+  const keep = async (blob: Blob) => {
+    const typed = blob.type ? blob : new Blob([blob], { type: meta.mime });
+    await putMediaBlob(id, typed);
+    return typed;
+  };
+  if (hasValidToken()) {
     try {
-      const blob = await driveDownload(meta.driveId);
-      const typed = blob.type ? blob : new Blob([blob], { type: meta.mime });
-      await putMediaBlob(id, typed);
-      return typed;
+      return await keep(await driveDownload(meta.driveId));
+    } catch {
+      /* not in this account's Drive: it may be a photo from a deck someone shared */
+    }
+  }
+  if (isShareConfigured()) {
+    try {
+      return await keep(await fetchPublicFile(meta.driveId));
     } catch (e) {
       console.warn('Media download failed', e);
     }

@@ -20,10 +20,20 @@ export interface Deck {
   newPerDay: number;
   reviewsPerDay: number;
   ttsLang: string; // '' = auto
-  shareId?: string | null; // Drive file id of the public share copy
+  shareId?: string | null; // Drive file id of an older, one-time share copy
+  /** A live share link for this deck: who can use it and how you are connected to it. */
+  share?: DeckShare | null;
   order: number;
   createdAt: number;
   updatedAt: number;
+}
+
+export type ShareMode = 'view' | 'edit';
+export interface DeckShare {
+  fileId: string;
+  mode: ShareMode;
+  /** owner made the link; editor edits it together; viewer only gets the owner's changes. */
+  role: 'owner' | 'editor' | 'viewer';
 }
 
 /** All coordinates are in image pixels of the stored image. */

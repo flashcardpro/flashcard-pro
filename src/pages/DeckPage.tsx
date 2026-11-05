@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from 'react';
-import { Play, ChevronDown, Brain, PencilLine, ClipboardCheck, Grid3x3, Rocket, Layers, ImagePlus, FileText, Settings2, CalendarClock, ChevronRight, Shuffle, Volume2 } from 'lucide-react';
+import { Play, ChevronDown, Brain, PencilLine, ClipboardCheck, Grid3x3, Rocket, Layers, ImagePlus, FileText, Settings2, CalendarClock, ChevronRight, Shuffle, Volume2, Users, Eye } from 'lucide-react';
 import { useStore, updateDeck } from '../lib/store';
 import { useT } from '../lib/i18n';
 import { buildQueue, deckCounts } from '../lib/srs';
@@ -9,6 +9,7 @@ import { Button, Dialog, Empty, Field, Menu, MenuContent, MenuItem, MenuLabel, M
 import { StatusBar } from '../components/Charts';
 import { CardBrowser } from '../components/CardBrowser';
 import { DeckKebab, usePhotoPicker } from '../components/Shell';
+import { ShareDialog } from '../components/ShareDialog';
 import { addPhotos } from '../lib/photoQueue';
 import { ColorChooser } from '../components/DeckBits';
 import { dayKey } from '../lib/util';
@@ -138,6 +139,7 @@ export function DeckPage({ id, addPhotosHint }: { id: string; addPhotosHint?: bo
   const lib = useStore((s) => s.lib);
   const deck = lib.decks[id];
   const [settings, setSettings] = useState(false);
+  const [sharingId, setSharingId] = useState<string | null>(null);
   const [includeSub, setIncludeSub] = useState(true);
   const picker = usePhotoPicker();
   const counts = useMemo(() => (deck ? deckCounts(lib, deck.id) : null), [lib, deck]);
@@ -151,6 +153,8 @@ export function DeckPage({ id, addPhotosHint }: { id: string; addPhotosHint?: bo
   }
   const subs = Object.values(lib.decks).filter((d) => d.parentId === deck.id).sort((a, b) => a.order - b.order);
   const plan = examPlan(lib, deck);
+  const sharedBy = deck.share ? deck : [...crumbs].reverse().find((c) => c.share);
+  const share = sharedBy?.share;
   return (
     <div className="page deck-page">
       <header className={`deck-head deck-${deck.color}`}>
@@ -170,6 +174,18 @@ export function DeckPage({ id, addPhotosHint }: { id: string; addPhotosHint?: bo
             <div>
               <h1 className="deck-title">{deck.name}</h1>
               {deck.description && <p className="muted">{deck.description}</p>}
+              {share && (
+                <button type="button" className="shared-mode-chip deck-shared-chip" onClick={() => setSharingId(sharedBy!.id)} title={t('Share settings')}>
+                  {share.mode === 'edit' ? <Users size={14} /> : <Eye size={14} />}
+                  {share.role === 'owner'
+                    ? share.mode === 'edit'
+                      ? t('Shared: anyone with the link can edit')
+                      : t('Shared: anyone with the link can view')
+                    : share.role === 'editor' && share.mode === 'edit'
+                      ? t('Shared deck: you edit it together')
+                      : t('Shared deck: you get changes from the owner')}
+                </button>
+              )}
             </div>
             <div className="deck-head-actions">
               <StudyMenu deckId={deck.id} due={due} />
@@ -232,6 +248,7 @@ export function DeckPage({ id, addPhotosHint }: { id: string; addPhotosHint?: bo
 
       <CardBrowser deckId={deck.id} includeSub={includeSub} />
       <DeckSettingsDialog open={settings} onOpenChange={setSettings} deck={deck} />
+      {sharingId && <ShareDialog open onOpenChange={(v) => !v && setSharingId(null)} deckId={sharingId} />}
       {picker.inputs}
     </div>
   );

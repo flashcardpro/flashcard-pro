@@ -10,21 +10,24 @@ export function useSignIn() {
   const t = useT();
   const [askMerge, setAskMerge] = useState(false);
   const [explain, setExplain] = useState(false);
-  async function run() {
+  /** Resolves true once signed in. */
+  async function run(): Promise<boolean> {
     if (!isDriveConfigured()) {
       setExplain(true);
-      return;
+      return false;
     }
     try {
       const r = await signInAndLoad('select_account');
       toast.success(t('Signed in as {name}. Your cards are saved in Google Drive.', { name: r.user.name }));
       if (r.guestHasData) setAskMerge(true);
       if (r.resumeRoute && r.resumeRoute !== '/' && !r.resumeRoute.startsWith('/shared')) navigate(r.resumeRoute);
+      return true;
     } catch (e) {
       const msg = (e as Error).message;
-      if (msg === 'popup-closed') return;
+      if (msg === 'popup-closed') return false;
       if (msg === 'drive-permission') toast.error(t('Flashcard Pro needs permission to save to your Drive. Sign in again and tick the Drive box.'));
       else toast.error(msg);
+      return false;
     }
   }
   const dialogs = (

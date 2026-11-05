@@ -204,6 +204,32 @@ export function saveNotes(notes: Note[]) {
   checkBadges();
 }
 
+/** Applies changes that came from a shared deck, keeping their timestamps so they do not bounce back. */
+export function applySharedChanges(c: { decks: Deck[]; notes: Note[]; deleteNotes: string[]; deleteDecks: string[]; media: MediaMeta[] }) {
+  useStore.getState().mutate((lib) => {
+    putAll(lib, 'media', c.media.filter((m) => !lib.media[m.id] || !lib.media[m.id].driveId));
+    putAll(lib, 'decks', c.decks);
+    putAll(lib, 'notes', c.notes);
+    for (const n of c.notes) {
+      const { upserts, deletes } = syncCardsForNote(lib, n);
+      putAll(lib, 'cards', upserts);
+      removeAll(lib, 'cards', deletes);
+    }
+    if (c.deleteNotes.length) {
+      const gone = new Set(c.deleteNotes);
+      removeAll(
+        lib,
+        'cards',
+        Object.values(lib.cards)
+          .filter((x) => gone.has(x.noteId))
+          .map((x) => x.id),
+      );
+      removeAll(lib, 'notes', c.deleteNotes);
+    }
+    if (c.deleteDecks.length) removeAll(lib, 'decks', c.deleteDecks);
+  });
+}
+
 /**
  * One-time switch: every photo with hidden parts becomes one card (tap to reveal), keeping its progress.
  * The settings timestamp is left alone so this never overwrites settings saved on another device.

@@ -341,6 +341,9 @@ export function useDeckActions(deck: Deck) {
             <Button
               variant="danger"
               onClick={() => {
+                // Deleting a deck you shared also turns its link off.
+                const shared = deck.share?.role === 'owner' ? deck.share.fileId : null;
+                if (shared) void import('../lib/drive').then((m) => m.stopSharing(shared)).catch(() => {});
                 deleteDeck(deck.id);
                 setConfirmDel(false);
                 if (window.location.hash.includes(deck.id)) navigate('/');
