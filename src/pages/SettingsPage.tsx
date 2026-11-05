@@ -1,23 +1,24 @@
 import { useEffect, useState } from 'react';
-import { Bell, CalendarPlus, Cloud, Download, LogIn, LogOut, Volume2, Palette, Brain, Timer, Upload, HardDrive, ShieldCheck } from 'lucide-react';
+import { Bell, CalendarPlus, Cloud, Download, LogIn, LogOut, Volume2, Palette, Brain, Timer, Upload, HardDrive, ShieldCheck, SlidersHorizontal, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore, updateSettings } from '../lib/store';
 import { useT } from '../lib/i18n';
 import { listVoices, onVoicesChanged, speak, ttsSupported } from '../lib/speech';
 import { askNotificationPermission, notificationsSupported, reminderIcs, notify } from '../lib/reminders';
 import { buildBundle } from '../lib/bundle';
-import { downloadBlob, dayKey } from '../lib/util';
+import { downloadBlob, dayKey, defaultSettings } from '../lib/util';
 import { signOut, syncNow } from '../lib/sync';
-import { navigate } from '../lib/router';
+import { navigate, useRoute } from '../lib/router';
 import { isDriveConfigured } from '../lib/drive';
 import { Button, Segmented, Select, Slider, Switch } from '../components/ui';
+import type { ButtonTime, Rating, TimeUnit } from '../lib/types';
 import { useSignIn } from '../components/SignIn';
 
 const MASK_COLORS = ['#2B55E6', '#18213D', '#0E9F9A', '#7C4DDB', '#F08C00', '#E5484D'];
 
-function Section({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+function Section({ icon, title, children, id }: { icon: React.ReactNode; title: string; children: React.ReactNode; id?: string }) {
   return (
-    <section className="settings-section">
+    <section className="settings-section" id={id}>
       <h2 className="settings-title">
         {icon}
         {title}
@@ -39,6 +40,112 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
   );
 }
 
+const MAX_AMOUNT: Record<TimeUnit, number> = { min: 1440, hour: 72, day: 365 };
+
+/** A small number box that only saves whole numbers inside its range. */
+function NumberBox({ value, min, max, onCommit, label }: { value: number; min: number; max: number; onCommit: (n: number) => void; label: string }) {
+  const [text, setText] = useState(String(value));
+  const commit = (raw: string) => {
+    const n = Math.round(Number(raw));
+    if (raw.trim() !== '' && Number.isFinite(n) && n >= min && n <= max) onCommit(n);
+    else setText(String(value));
+  };
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      className="input input-sm num-box"
+      min={min}
+      max={max}
+      value={text}
+      aria-label={label}
+      onChange={(e) => {
+        setText(e.target.value);
+        const n = Math.round(Number(e.target.value));
+        if (e.target.value.trim() !== '' && Number.isFinite(n) && n >= min && n <= max) onCommit(n);
+      }}
+      onBlur={(e) => commit(e.target.value)}
+    />
+  );
+}
+
+function ButtonTimes() {
+  const t = useT();
+  const times = useStore((st) => st.lib.settings.buttonTimes) || defaultSettings().buttonTimes;
+  const names = [t('Again'), t('Hard'), t('Good'), t('Easy')];
+  const units = [
+    { value: 'min', label: t('minutes') },
+    { value: 'hour', label: t('hours') },
+    { value: 'day', label: t('days') },
+  ];
+  const set = (r: Rating, patch: Partial<ButtonTime>) => updateSettings({ buttonTimes: { ...times, [r]: { ...times[r], ...patch } } });
+  const anyFixed = ([1, 2, 3, 4] as Rating[]).some((r) => times[r]?.mode === 'fixed');
+  return (
+    <>
+      <ul className="btn-times">
+        {([1, 2, 3, 4] as Rating[]).map((r) => {
+          const bt = times[r] || defaultSettings().buttonTimes[r];
+          return (
+            <li key={r} className={'btn-time r' + r}>
+              <span className="btn-time-name">{names[r - 1]}</span>
+              <Select
+                size="sm"
+                value={bt.mode}
+                onChange={(v) => set(r, { mode: v as ButtonTime['mode'] })}
+                label={t('Time for {name}', { name: names[r - 1] })}
+                options={[
+                  { value: 'auto', label: t('Automatic'), hint: t('Gaps grow as you learn') },
+                  { value: 'fixed', label: t('Fixed time'), hint: t('Always the same gap') },
+                ]}
+              />
+              {bt.mode === 'fixed' ? (
+                <span className="btn-time-fixed">
+                  <NumberBox key={bt.unit + ':' + bt.amount} value={bt.amount} min={1} max={MAX_AMOUNT[bt.unit]} label={t('Amount')} onCommit={(n) => set(r, { amount: n })} />
+                  <Select size="sm" value={bt.unit} onChange={(v) => set(r, { unit: v as TimeUnit, amount: Math.min(bt.amount, MAX_AMOUNT[v as TimeUnit]) })} options={units} label={t('Unit')} />
+                </span>
+              ) : (
+                <span className="muted small">{t('The app works it out for each card')}</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {anyFixed && (
+        <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} onClick={() => updateSettings({ buttonTimes: defaultSettings().buttonTimes })}>
+          {t('Set all back to automatic')}
+        </Button>
+      )}
+    </>
+  );
+}
+
+function CustomChoices() {
+  const t = useT();
+  const days = useStore((st) => st.lib.settings.customDays) || [2, 5, 10, 30];
+  const list = [0, 1, 2, 3].map((i) => days[i] ?? [2, 5, 10, 30][i]);
+  return (
+    <div className="custom-choices">
+      {list.map((d, i) => (
+        <label key={i} className="custom-choice">
+          <NumberBox
+            key={d}
+            value={d}
+            min={1}
+            max={365}
+            label={t('Choice {n}', { n: i + 1 })}
+            onCommit={(n) => {
+              const next = list.slice();
+              next[i] = n;
+              updateSettings({ customDays: next });
+            }}
+          />
+          <span className="muted small">{t('days')}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const t = useT();
   const s = useStore((st) => st.lib.settings);
@@ -47,7 +154,14 @@ export function SettingsPage() {
   const signIn = useSignIn();
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>(listVoices());
   const [perm, setPerm] = useState(notificationsSupported() ? Notification.permission : 'denied');
+  const route = useRoute();
+  const section = route.query.get('section');
   useEffect(() => onVoicesChanged(() => setVoices(listVoices())), []);
+  useEffect(() => {
+    if (section !== 'buttons') return;
+    const id = setTimeout(() => document.getElementById('rating-buttons')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    return () => clearTimeout(id);
+  }, [section]);
 
   return (
     <div className="page settings-page">
@@ -101,17 +215,6 @@ export function SettingsPage() {
       </Section>
 
       <Section icon={<Brain size={18} />} title={t('Studying')}>
-        <Row label={t('Rating buttons')} hint={t('Four buttons like Anki, or a 1 to 5 confidence scale like Brainscape.')}>
-          <Segmented
-            value={s.ratingStyle}
-            onChange={(v) => updateSettings({ ratingStyle: v })}
-            label={t('Rating buttons')}
-            options={[
-              { value: 'four', label: t('Again / Hard / Good / Easy') },
-              { value: 'confidence', label: t('Confidence 1 to 5') },
-            ]}
-          />
-        </Row>
         <Row label={t('Daily goal')} hint={t('Reviews per day. Reaching it earns bonus XP.')}>
           <Select value={String(s.dailyGoal)} onChange={(v) => updateSettings({ dailyGoal: Number(v) })} label={t('Daily goal')} options={[10, 20, 30, 50, 75, 100, 150, 200].map((n) => ({ value: String(n), label: t('{n} reviews', { n }) }))} />
         </Row>
@@ -128,6 +231,36 @@ export function SettingsPage() {
             ]}
           />
         </Row>
+      </Section>
+
+      <Section icon={<SlidersHorizontal size={18} />} title={t('Rating buttons')} id="rating-buttons">
+        <Row label={t('Button style')} hint={t('Four buttons like Anki, or a 1 to 5 confidence scale like Brainscape.')}>
+          <Segmented
+            value={s.ratingStyle}
+            onChange={(v) => updateSettings({ ratingStyle: v })}
+            label={t('Rating buttons')}
+            options={[
+              { value: 'four', label: t('Again / Hard / Good / Easy') },
+              { value: 'confidence', label: t('Confidence 1 to 5') },
+            ]}
+          />
+        </Row>
+        <div className="settings-row btn-times-row">
+          <div className="settings-label">
+            <b>{t('When each button brings the card back')}</b>
+            <span className="muted small">{t('Automatic suits most people: every time you remember a card, its gap grows. A fixed time always uses the gap you set, so cards do not spread out over time.')}</span>
+            {s.ratingStyle === 'confidence' && <span className="muted small">{t('With 1 to 5 buttons: 1 is Again, 2 is Hard, 3 and 4 are Good, 5 is Easy.')}</span>}
+          </div>
+          <ButtonTimes />
+        </div>
+        <Row label={t('Show Custom button')} hint={t('A fifth button that lets you pick the day a card comes back.')}>
+          <Switch checked={s.showCustomButton !== false} onChange={(v) => updateSettings({ showCustomButton: v })} label={t('Show Custom button')} />
+        </Row>
+        {s.showCustomButton !== false && (
+          <Row label={t('Custom menu choices')} hint={t('The four quick choices in the Custom menu, in days.')}>
+            <CustomChoices />
+          </Row>
+        )}
       </Section>
 
       <Section icon={<Palette size={18} />} title={t('Look and language')}>

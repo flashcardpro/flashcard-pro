@@ -150,6 +150,14 @@ export function defaultSettings(): Settings {
     remindersOn: false,
     reminderTime: '19:00',
     dailyGoal: 50,
+    buttonTimes: {
+      1: { mode: 'auto', amount: 10, unit: 'min' },
+      2: { mode: 'auto', amount: 1, unit: 'day' },
+      3: { mode: 'auto', amount: 3, unit: 'day' },
+      4: { mode: 'auto', amount: 7, unit: 'day' },
+    },
+    showCustomButton: true,
+    customDays: [2, 5, 10, 30],
     updatedAt: 0,
   };
 }

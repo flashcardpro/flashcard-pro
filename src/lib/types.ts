@@ -137,6 +137,13 @@ export interface XpEvent {
 export type Language = 'en' | 'hi';
 export type Theme = 'light' | 'dark' | 'system';
 export type RatingStyle = 'four' | 'confidence';
+export type TimeUnit = 'min' | 'hour' | 'day';
+/** How one rating button schedules: 'auto' lets the app decide, 'fixed' always uses amount + unit. */
+export interface ButtonTime {
+  mode: 'auto' | 'fixed';
+  amount: number;
+  unit: TimeUnit;
+}
 
 export interface Settings {
   language: Language;
@@ -153,6 +160,9 @@ export interface Settings {
   remindersOn: boolean;
   reminderTime: string; // HH:MM
   dailyGoal: number;
+  buttonTimes: Record<Rating, ButtonTime>;
+  showCustomButton: boolean;
+  customDays: number[];
   updatedAt: number;
 }
 

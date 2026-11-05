@@ -1318,3 +1318,85 @@
 .welcome-tutorial svg:first-child {
   color: var(--ballpoint);
 }
+
+/* settings: rating button times */
+.settings-section {
+  scroll-margin-top: calc(var(--top-h) + 14px);
+}
+.settings-row.btn-times-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+.btn-times-row .settings-label {
+  flex: none;
+}
+.btn-times-row > .btn {
+  align-self: flex-start;
+}
+.btn-times {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.btn-time {
+  display: grid;
+  grid-template-columns: 92px 190px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px 8px 0;
+  border: 1px solid var(--rule-soft);
+  border-left: 4px solid var(--tone);
+  border-radius: var(--r-ctl);
+  background: var(--card);
+}
+.btn-time.r1 { --tone: var(--margin-red); }
+.btn-time.r2 { --tone: var(--s-learning); }
+.btn-time.r3 { --tone: var(--green); }
+.btn-time.r4 { --tone: var(--ballpoint); }
+.btn-time-name {
+  padding-left: 12px;
+  font-weight: 800;
+  color: var(--tone);
+}
+.btn-time.r2 .btn-time-name {
+  color: #a77900;
+}
+:root[data-theme='dark'] .btn-time.r2 .btn-time-name {
+  color: var(--s-learning);
+}
+.btn-time-fixed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.num-box {
+  width: 84px;
+  font-variant-numeric: tabular-nums;
+}
+.custom-choices {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.custom-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.custom-choice .num-box {
+  width: 72px;
+}
+@media (max-width: 640px) {
+  .btn-time {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .btn-time-name {
+    padding-left: 0;
+  }
+}

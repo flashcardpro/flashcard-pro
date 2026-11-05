@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { clozeNumbers, renderCloze, ordsForNote, syncCardsForNote, faceFor, nextClozeNumber } from '../src/lib/cards';
-import { emptySrs, review, statusOf, buildQueue, preview, confidenceToRating, reviewOnDate, dueInDays, dueOnDate } from '../src/lib/srs';
+import { emptySrs, review, statusOf, buildQueue, preview, confidenceToRating, reviewOnDate, dueInDays, dueOnDate, scheduleRating, previewWith } from '../src/lib/srs';
 import { mergeLibraries } from '../src/lib/merge';
 import { emptyLibrary, newDeck, gradeAnswer, dayKey, formatInterval } from '../src/lib/util';
 import { parseTermList, guessOptions, parseCsv } from '../src/lib/textImport';
@@ -88,6 +88,27 @@ describe('spaced repetition', () => {
     expect(s.reps).toBe(1);
     expect(s.scheduled_days).toBe(4);
     expect(new Date(dueOnDate('2026-12-25')).getDate()).toBe(25);
+  });
+  it('fixed button times override the automatic gap', () => {
+    const t0 = new Date(2026, 10, 5, 21, 30).getTime();
+    const times = {
+      1: { mode: 'fixed' as const, amount: 5, unit: 'min' as const },
+      2: { mode: 'auto' as const, amount: 1, unit: 'day' as const },
+      3: { mode: 'fixed' as const, amount: 2, unit: 'day' as const },
+      4: { mode: 'fixed' as const, amount: 3, unit: 'hour' as const },
+    };
+    const again = scheduleRating(emptySrs(t0), 1, t0, 0.9, times);
+    expect(again.due).toBe(t0 + 5 * 60_000);
+    expect(again.state).toBe(1);
+    const good = scheduleRating(emptySrs(t0), 3, t0, 0.9, times);
+    expect(good.due).toBe(dueInDays(2, t0));
+    expect(good.state).toBe(2);
+    const auto = scheduleRating(emptySrs(t0), 2, t0, 0.9, times);
+    expect(auto.due).toBe(review(emptySrs(t0), 2, t0).due);
+    const p = previewWith(emptySrs(t0), t0, 0.9, times);
+    expect(p[1]).toBe(5 * 60_000);
+    expect(p[3]).toBe(2 * 86_400_000);
+    expect(p[4]).toBe(3 * 3_600_000);
   });
   it('maps confidence 1-5 to ratings', () => {
     expect([1, 2, 3, 4, 5].map((c) => confidenceToRating(c as 1))).toEqual([1, 2, 3, 3, 4]);

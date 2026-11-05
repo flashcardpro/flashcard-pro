@@ -1,5 +1,5 @@
 import { createEmptyCard, fsrs, generatorParameters, Rating as FR, type Card as FCard, type FSRS } from 'ts-fsrs';
-import type { Card, CardStatus, Deck, Library, Rating, SrsState } from './types';
+import type { ButtonTime, Card, CardStatus, Deck, Library, Rating, SrsState } from './types';
 import { DAY_START_HOUR, dayKey, endOfStudyDay, startOfStudyDay } from './util';
 
 const MASTERED_DAYS = 21;
@@ -60,13 +60,46 @@ export function review(s: SrsState, rating: Rating, ts = Date.now(), retention =
 }
 
 /**
+ * Moves a freshly reviewed card to a due time the learner chose.
+ * A day or more away it becomes a normal review card; sooner, it stays in the short "learning" queue.
+ */
+function placeAt(next: SrsState, prev: SrsState, due: number, ts: number, wholeDays: boolean): SrsState {
+  if (wholeDays || due - ts >= 86_400_000) return { ...next, state: 2, learning_steps: 0, due, scheduled_days: Math.max(1, Math.round((due - ts) / 86_400_000)) };
+  return { ...next, state: prev.state >= 2 ? 3 : 1, due, scheduled_days: 0 };
+}
+
+/**
  * The learner picks the day the card comes back (the Custom button).
  * Memory is updated as if they answered Good, then the next review is moved to that day.
  */
 export function reviewOnDate(s: SrsState, dueAt: number, ts = Date.now(), retention = 0.9): SrsState {
-  const good = review(s, 3, ts, retention);
-  const days = Math.max(1, Math.round((dueAt - ts) / 86_400_000));
-  return { ...good, state: 2, learning_steps: 0, due: dueAt, scheduled_days: days };
+  return placeAt(review(s, 3, ts, retention), s, dueAt, ts, true);
+}
+
+/** When a button set to a fixed time sends the card, or null if the button is automatic. */
+export function fixedDueAt(bt: ButtonTime | undefined, ts = Date.now()): number | null {
+  if (!bt || bt.mode !== 'fixed' || !(bt.amount > 0)) return null;
+  if (bt.unit === 'day') return dueInDays(Math.max(1, Math.round(bt.amount)), ts);
+  return ts + bt.amount * (bt.unit === 'hour' ? 3_600_000 : 60_000);
+}
+
+/** Rates a card, using the learner's fixed button time when they set one. */
+export function scheduleRating(s: SrsState, rating: Rating, ts = Date.now(), retention = 0.9, times?: Partial<Record<Rating, ButtonTime>>): SrsState {
+  const next = review(s, rating, ts, retention);
+  const bt = times?.[rating];
+  const due = fixedDueAt(bt, ts);
+  return due == null ? next : placeAt(next, s, due, ts, bt!.unit === 'day');
+}
+
+/** What each button shows above its name: the automatic interval, or the fixed time the learner set. */
+export function previewWith(s: SrsState, ts = Date.now(), retention = 0.9, times?: Partial<Record<Rating, ButtonTime>>): Record<Rating, number> {
+  const p = preview(s, ts, retention);
+  for (const r of [1, 2, 3, 4] as Rating[]) {
+    const bt = times?.[r];
+    const due = fixedDueAt(bt, ts);
+    if (due != null) p[r] = bt!.unit === 'day' ? Math.round(bt!.amount) * 86_400_000 : due - ts;
+  }
+  return p;
 }
 
 /** The start (4 AM) of the study day `days` days from now. */

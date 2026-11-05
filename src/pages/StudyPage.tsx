@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Volume2, VolumeX, MoreHorizontal, Pencil, Undo2, EyeOff, Pause, Flag, RotateCcw, Trophy, Grid3x3, ArrowLeft, Clock, Check, Keyboard, CalendarDays, CalendarClock } from 'lucide-react';
+import { X, Volume2, VolumeX, MoreHorizontal, Pencil, Undo2, EyeOff, Pause, Flag, RotateCcw, Trophy, Grid3x3, ArrowLeft, Clock, Check, Keyboard, CalendarDays, CalendarClock, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore, rateCard, undoRating, updateCards, setNotesFlag, resetCards, getLib, saveResume, updateSettings } from '../lib/store';
 import { useT, useLang } from '../lib/i18n';
-import { buildQueue, preview, statusOf, confidenceToRating, dueInDays, dueOnDate } from '../lib/srs';
+import { buildQueue, previewWith, statusOf, confidenceToRating, dueInDays, dueOnDate } from '../lib/srs';
 import { faceFor } from '../lib/cards';
 import { navigate } from '../lib/router';
 import { endOfStudyDay, startOfStudyDay, dayKey, formatInterval, shuffle } from '../lib/util';
@@ -45,6 +45,8 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
   const lang = useLang();
   const lib = useStore((s) => s.lib);
   const settings = lib.settings;
+  const showCustom = settings.showCustomButton !== false;
+  const customDays = [...new Set((settings.customDays?.length ? settings.customDays : [2, 5, 10, 30]).filter((d) => d >= 1))].sort((a, b) => a - b);
   const deck = deckId ? lib.decks[deckId] : null;
   const route = deckId ? `/deck/${deckId}/study/${mode}` : `/study/all/${mode}`;
 
@@ -101,7 +103,7 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardId, pos]);
 
-  const intervals = useMemo(() => (card && mode === 'review' ? preview(card.srs, Date.now(), settings.retention) : null), [card, mode, settings.retention, revealed]); // eslint-disable-line react-hooks/exhaustive-deps
+  const intervals = useMemo(() => (card && mode === 'review' ? previewWith(card.srs, Date.now(), settings.retention, settings.buttonTimes) : null), [card, mode, settings.retention, settings.buttonTimes, revealed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function reveal() {
     if (finished || revealed) return;
@@ -194,7 +196,7 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
           rate(3);
         }
       }
-      if (revealed && mode === 'review' && e.key.toLowerCase() === 'c') {
+      if (revealed && mode === 'review' && showCustom && e.key.toLowerCase() === 'c') {
         e.preventDefault();
         setCustomOpen(true);
         return;
@@ -268,7 +270,7 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
   }
 
   const status = statusOf(card);
-  const customButton = (
+  const customButton = !showCustom ? null : (
     <Menu open={customOpen} onOpenChange={setCustomOpen}>
       <MenuTrigger asChild>
         <button className="rate-btn r5" aria-label={t('Choose when this card comes back')}>
@@ -281,7 +283,7 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
       </MenuTrigger>
       <MenuContent side="top" align="end" className="custom-due-menu">
         <MenuLabel>{t('Show this card again in')}</MenuLabel>
-        {CUSTOM_DAYS.map((d) => (
+        {customDays.map((d) => (
           <MenuItem key={d} icon={<CalendarClock size={15} />} hint={formatDay(dueInDays(d), lang)} onSelect={() => rate(3, dueInDays(d))}>
             {t('{n} days', { n: d })}
           </MenuItem>
@@ -351,7 +353,7 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
         </button>
       </div>
     ) : settings.ratingStyle === 'confidence' ? (
-      <div className="rate-row five with-custom" role="group" aria-label={t('How well did you know it?')}>
+      <div className={'rate-row five' + (showCustom ? ' with-custom' : '')} role="group" aria-label={t('How well did you know it?')}>
         {[1, 2, 3, 4, 5].map((c) => {
           const r = confidenceToRating(c as 1 | 2 | 3 | 4 | 5);
           return (
@@ -365,7 +367,7 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
         {customButton}
       </div>
     ) : (
-      <div className="rate-row with-custom" role="group" aria-label={t('How well did you know it?')}>
+      <div className={'rate-row' + (showCustom ? ' with-custom' : '')} role="group" aria-label={t('How well did you know it?')}>
         {([1, 2, 3, 4] as Rating[]).map((r) => (
           <button key={r} className={'rate-btn r' + r} onClick={() => rate(r)}>
             <small>{intervals ? formatInterval(intervals[r], lang) : ''}</small>
@@ -433,6 +435,9 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
               {t('Reset progress')}
             </MenuItem>
             <MenuSep />
+            <MenuItem icon={<SlidersHorizontal size={15} />} onSelect={() => navigate('/settings?section=buttons')}>
+              {t('Change button times')}
+            </MenuItem>
             <MenuItem icon={<Keyboard size={15} />} onSelect={() => setShowKeys(!showKeys)}>
               {showKeys ? t('Hide keyboard keys') : t('Show keyboard keys')}
             </MenuItem>
@@ -469,7 +474,7 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
           ratingButtons
         )}
         {revealed && mode === 'review' && (
-          <Tooltip text={t('Again: forgot it. Hard: got it with effort. Good: remembered. Easy: instant. Custom: you pick the day.')}>
+          <Tooltip text={showCustom ? t('Again: forgot it. Hard: got it with effort. Good: remembered. Easy: instant. Custom: you pick the day.') : t('Again: forgot it. Hard: got it with effort. Good: remembered. Easy: instant.')}>
             <p className="rate-hint">{t('How well did you know it?')}</p>
           </Tooltip>
         )}
@@ -478,8 +483,6 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
     </div>
   );
 }
-
-const CUSTOM_DAYS = [2, 5, 10, 30];
 
 /** A short weekday and date, like "Sat, 7 Nov". */
 function formatDay(ts: number, lang: string): string {
