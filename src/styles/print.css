@@ -1,0 +1,132 @@
+.print-page {
+  padding: 18px var(--gutter) 60px;
+}
+.print-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.print-tip {
+  margin-bottom: 20px;
+}
+.paper-sheets {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  align-items: center;
+}
+.paper-pair {
+  display: contents;
+}
+.paper-sheet {
+  /* paper is always light, whatever the screen theme */
+  --ink: #18213d;
+  --ink-2: #47536f;
+  --ink-3: #75809b;
+  --card: #ffffff;
+  --paper: #ffffff;
+  --paper-2: #eef3fa;
+  --rule: #c9d9ec;
+  --rule-soft: #e2eaf5;
+  --line: #d6e4f3;
+  --ballpoint: #2b55e6;
+  --ballpoint-ink: #1d3fb5;
+  --ballpoint-wash: #e7edff;
+  --highlighter: #ffe14d;
+  --highlighter-wash: #fff7c7;
+  width: 210mm;
+  min-height: 297mm;
+  max-width: 100%;
+  background: #fff;
+  color: #18213d;
+  padding: 10mm;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: calc((297mm - 20mm) / 4);
+  box-shadow: var(--lift);
+}
+.per-4 .paper-sheet {
+  grid-auto-rows: calc((297mm - 20mm) / 2);
+}
+.per-6 .paper-sheet {
+  grid-auto-rows: calc((297mm - 20mm) / 3);
+}
+.print-card {
+  position: relative;
+  padding: 7mm 6mm 5mm;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid transparent;
+}
+.cut .print-card {
+  border: 1px dashed #b8c4d6;
+}
+.print-card .face {
+  font-size: 13pt;
+  gap: 8px;
+}
+.print-card .face-photo {
+  width: min(100%, calc(42mm * var(--ar, 1.5)));
+}
+.per-6 .print-card .face-photo {
+  width: min(100%, calc(58mm * var(--ar, 1.5)));
+}
+.per-4 .print-card .face-photo {
+  width: min(100%, calc(96mm * var(--ar, 1.5)));
+}
+.print-card .icon-btn {
+  display: none;
+}
+.print-side {
+  position: absolute;
+  top: 2mm;
+  left: 3mm;
+  font-size: 7pt;
+  color: #9aa6bd;
+  font-weight: 700;
+}
+.paper-sheet.is-inline .print-side {
+  color: #2b55e6;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  .no-print,
+  .topbar,
+  .bottom-nav,
+  .app-side,
+  [data-sonner-toaster] {
+    display: none !important;
+  }
+  .print-page {
+    padding: 0;
+  }
+  .paper-sheets {
+    gap: 0;
+    display: block;
+  }
+  .paper-sheet {
+    box-shadow: none;
+    margin: 0;
+    page-break-after: always;
+    break-after: page;
+    width: 210mm;
+    height: 297mm;
+    max-width: none;
+  }
+  .paper-sheet.is-inline {
+    /* when not two-sided, answers follow on the next page too */
+    page-break-after: always;
+  }
+}

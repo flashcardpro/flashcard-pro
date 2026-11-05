@@ -1,0 +1,137 @@
+/* Flashcard Pro design tokens.
+   The look borrows from real index cards: ballpoint-blue ink, the red header rule,
+   faint blue ruled lines, highlighter yellow, and colored top bands for decks. */
+:root {
+  --font: 'Atkinson Hyperlegible Next', 'Noto Sans Devanagari', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-hi: 'Noto Sans Devanagari', 'Atkinson Hyperlegible Next', system-ui, sans-serif;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  /* type scale, ratio 1.25 on a 16px base */
+  --t-xs: 0.75rem;
+  --t-sm: 0.875rem;
+  --t-md: 1rem;
+  --t-lg: 1.25rem;
+  --t-xl: 1.5625rem;
+  --t-2xl: 1.953rem;
+  --t-3xl: 2.441rem;
+  --t-4xl: 3.052rem;
+
+  --paper: #f4f7fc;
+  --paper-2: #eaf0f8;
+  --card: #ffffff;
+  --ink: #18213d;
+  --ink-2: #47536f;
+  --ink-3: #75809b;
+  --rule: #c9d9ec;
+  --rule-soft: #e2eaf5;
+  --line: #d6e4f3; /* ruled lines on cards */
+  --ballpoint: #2b55e6;
+  --ballpoint-ink: #1d3fb5;
+  --ballpoint-wash: #e7edff;
+  --margin-red: #e5484d;
+  --red-wash: #fde8e8;
+  --highlighter: #ffe14d;
+  --highlighter-wash: #fff7c7;
+  --green: #16a34a;
+  --green-wash: #def7e6;
+  --on-primary: #ffffff;
+
+  --s-new: #2b55e6;
+  --s-learning: #e2a400;
+  --s-due: #e5484d;
+  --s-review: #0e9f9a;
+  --s-mastered: #7c4ddb;
+  --s-suspended: #98a2b8;
+
+  --deck-red: #e5484d;
+  --deck-orange: #f08c00;
+  --deck-yellow: #f2c200;
+  --deck-green: #20a35a;
+  --deck-teal: #0e9f9a;
+  --deck-blue: #2b55e6;
+  --deck-indigo: #4b45c9;
+  --deck-purple: #8b4ddb;
+  --deck-pink: #e0498a;
+  --deck-graphite: #5a6478;
+
+  --r-card: 6px;
+  --r-ctl: 9px;
+  --r-pop: 12px;
+  --r-pill: 999px;
+
+  /* depth is a stack of index cards, not a soft glow */
+  --stack: 3px 3px 0 -1px var(--card), 3px 3px 0 0 var(--rule), 6px 6px 0 -1px var(--card), 6px 6px 0 0 var(--rule-soft);
+  --lift: 0 1px 0 var(--rule), 0 10px 24px -16px rgba(24, 33, 61, 0.35);
+  --pop-shadow: 0 0 0 1px var(--rule), 0 16px 40px -18px rgba(24, 33, 61, 0.45);
+  --focus: 0 0 0 3px color-mix(in srgb, var(--ballpoint) 35%, transparent);
+
+  --side-w: 264px;
+  --top-h: 60px;
+  --gutter: 24px;
+  --logo-ink: #18213d;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --paper: #0e1424;
+  --paper-2: #121a2e;
+  --card: #172036;
+  --ink: #e8edf8;
+  --ink-2: #aab5cf;
+  --ink-3: #7a86a3;
+  --rule: #2b3858;
+  --rule-soft: #212c47;
+  --line: #22304f;
+  --ballpoint: #6f8dff;
+  --ballpoint-ink: #93a9ff;
+  --ballpoint-wash: #1c2853;
+  --margin-red: #ff6b70;
+  --red-wash: #3a1d27;
+  --highlighter: #ffd93d;
+  --highlighter-wash: #3a3418;
+  --green: #3ccf75;
+  --green-wash: #163526;
+  --on-primary: #0e1424;
+
+  --s-new: #6f8dff;
+  --s-learning: #f5c03a;
+  --s-due: #ff6b70;
+  --s-review: #2fc7c1;
+  --s-mastered: #a983ff;
+  --s-suspended: #6b7590;
+
+  --deck-red: #ff6b70;
+  --deck-orange: #ffa23a;
+  --deck-yellow: #ffd93d;
+  --deck-green: #3ccf75;
+  --deck-teal: #2fc7c1;
+  --deck-blue: #6f8dff;
+  --deck-indigo: #8a84ff;
+  --deck-purple: #b083ff;
+  --deck-pink: #ff7ab3;
+  --deck-graphite: #8f9ab3;
+
+  --stack: 3px 3px 0 -1px var(--card), 3px 3px 0 0 var(--rule), 6px 6px 0 -1px var(--card), 6px 6px 0 0 var(--rule-soft);
+  --lift: 0 1px 0 var(--rule), 0 12px 28px -16px rgba(0, 0, 0, 0.7);
+  --pop-shadow: 0 0 0 1px var(--rule), 0 18px 44px -16px rgba(0, 0, 0, 0.8);
+  --logo-ink: #0e1424;
+  color-scheme: dark;
+}
+
+.deck-red { --deck: var(--deck-red); }
+.deck-orange { --deck: var(--deck-orange); }
+.deck-yellow { --deck: var(--deck-yellow); }
+.deck-green { --deck: var(--deck-green); }
+.deck-teal { --deck: var(--deck-teal); }
+.deck-blue { --deck: var(--deck-blue); }
+.deck-indigo { --deck: var(--deck-indigo); }
+.deck-purple { --deck: var(--deck-purple); }
+.deck-pink { --deck: var(--deck-pink); }
+.deck-graphite { --deck: var(--deck-graphite); }
+
+.status-new { --status: var(--s-new); }
+.status-learning { --status: var(--s-learning); }
+.status-due { --status: var(--s-due); }
+.status-review { --status: var(--s-review); }
+.status-mastered { --status: var(--s-mastered); }
+.status-suspended { --status: var(--s-suspended); }

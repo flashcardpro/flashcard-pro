@@ -1,0 +1,277 @@
+/* Google sign-in (Google Identity Services) and Google Drive storage, all in the browser. */
+import type { GoogleUser } from './store';
+
+declare global {
+  interface Window {
+    FCP_CONFIG?: { googleClientId?: string; googleApiKey?: string };
+    google?: any;
+  }
+}
+
+const SCOPES = 'openid email profile https://www.googleapis.com/auth/drive.file';
+const API = 'https://www.googleapis.com/drive/v3';
+const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
+const ROOT_NAME = 'Flashcard Pro';
+
+export class DriveAuthError extends Error {}
+
+export function driveConfig() {
+  return window.FCP_CONFIG || {};
+}
+
+export function isDriveConfigured(): boolean {
+  return !!driveConfig().googleClientId;
+}
+
+export function isShareConfigured(): boolean {
+  return !!driveConfig().googleApiKey;
+}
+
+let gisPromise: Promise<void> | null = null;
+function loadGis(): Promise<void> {
+  if (window.google?.accounts?.oauth2) return Promise.resolve();
+  if (!gisPromise) {
+    gisPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://accounts.google.com/gsi/client';
+      s.async = true;
+      s.onload = () => resolve();
+      s.onerror = () => {
+        gisPromise = null;
+        reject(new Error('Google sign-in could not load. Check your internet connection.'));
+      };
+      document.head.appendChild(s);
+    });
+  }
+  return gisPromise;
+}
+
+let token: { value: string; expiresAt: number } | null = null;
+let tokenClient: any = null;
+let pending: { resolve: (t: string) => void; reject: (e: Error) => void } | null = null;
+
+export function hasValidToken(): boolean {
+  return !!token && token.expiresAt - 60_000 > Date.now();
+}
+
+export function tokenExpiresAt(): number {
+  return token?.expiresAt ?? 0;
+}
+
+export function clearToken() {
+  token = null;
+}
+
+async function requestToken(prompt: '' | 'consent' | 'select_account', hint?: string): Promise<string> {
+  await loadGis();
+  const clientId = driveConfig().googleClientId;
+  if (!clientId) throw new Error('Google sign-in is not set up for this site yet.');
+  if (!tokenClient) {
+    tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: SCOPES,
+      callback: (resp: any) => {
+        const p = pending;
+        pending = null;
+        if (!p) return;
+        if (resp.error) p.reject(new DriveAuthError(resp.error_description || resp.error));
+        else {
+          const granted = window.google.accounts.oauth2.hasGrantedAllScopes(resp, 'https://www.googleapis.com/auth/drive.file');
+          if (!granted) {
+            p.reject(new DriveAuthError('drive-permission'));
+            return;
+          }
+          token = { value: resp.access_token, expiresAt: Date.now() + Number(resp.expires_in || 3600) * 1000 };
+          p.resolve(token.value);
+        }
+      },
+      error_callback: (err: any) => {
+        const p = pending;
+        pending = null;
+        p?.reject(new DriveAuthError(err?.type === 'popup_closed' ? 'popup-closed' : err?.message || 'Sign-in was cancelled.'));
+      },
+    });
+  }
+  return new Promise((resolve, reject) => {
+    pending = { resolve, reject };
+    tokenClient.requestAccessToken({ prompt, login_hint: hint });
+  });
+}
+
+export async function signIn(opts: { prompt?: '' | 'consent' | 'select_account'; hint?: string } = {}): Promise<GoogleUser> {
+  const access = await requestToken(opts.prompt ?? 'select_account', opts.hint);
+  const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + access } });
+  if (!r.ok) throw new Error('Could not read your Google profile.');
+  const u = await r.json();
+  return { sub: u.sub, email: u.email || '', name: u.name || u.email || 'Google user', picture: u.picture || '' };
+}
+
+export function revokeAccess() {
+  if (token && window.google?.accounts?.oauth2) window.google.accounts.oauth2.revoke(token.value, () => {});
+  token = null;
+}
+
+async function api(url: string, init: RequestInit = {}): Promise<Response> {
+  if (!hasValidToken()) throw new DriveAuthError('token-expired');
+  const r = await fetch(url, { ...init, headers: { ...(init.headers || {}), Authorization: 'Bearer ' + token!.value } });
+  if (r.status === 401) {
+    token = null;
+    throw new DriveAuthError('token-expired');
+  }
+  if (!r.ok) {
+    let detail = '';
+    try {
+      const j = await r.json();
+      detail = j?.error?.message || '';
+    } catch {
+      /* ignore */
+    }
+    throw new Error(`Google Drive error ${r.status}${detail ? ': ' + detail : ''}`);
+  }
+  return r;
+}
+
+interface DriveFile {
+  id: string;
+  name: string;
+  modifiedTime?: string;
+  version?: string;
+}
+
+async function findOne(q: string): Promise<DriveFile | null> {
+  const url = `${API}/files?q=${encodeURIComponent(q + ' and trashed = false')}&spaces=drive&fields=files(id,name,modifiedTime,version)&orderBy=modifiedTime desc&pageSize=5`;
+  const r = await api(url);
+  const j = await r.json();
+  return j.files?.[0] || null;
+}
+
+async function createFolder(name: string, tag: string, parent?: string): Promise<string> {
+  const r = await api(`${API}/files?fields=id`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: parent ? [parent] : undefined, appProperties: { fcp: tag } }),
+  });
+  return (await r.json()).id;
+}
+
+const folderCache = new Map<string, string>();
+async function folder(tag: 'root' | 'media' | 'shared'): Promise<string> {
+  const cached = folderCache.get(tag);
+  if (cached) return cached;
+  let id: string;
+  if (tag === 'root') {
+    const f = await findOne(`appProperties has { key='fcp' and value='root' } and mimeType = 'application/vnd.google-apps.folder'`);
+    id = f?.id || (await createFolder(ROOT_NAME, 'root'));
+  } else {
+    const root = await folder('root');
+    const f = await findOne(`appProperties has { key='fcp' and value='${tag}' } and '${root}' in parents`);
+    id = f?.id || (await createFolder(tag === 'media' ? 'Photos and audio' : 'Shared decks', tag, root));
+  }
+  folderCache.set(tag, id);
+  return id;
+}
+
+export function resetDriveCache() {
+  folderCache.clear();
+}
+
+function multipart(meta: object, body: Blob | string, mime: string): { body: Blob; type: string } {
+  const b = 'fcp' + Math.random().toString(36).slice(2);
+  const blob = new Blob(
+    [`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: ${mime}\r\n\r\n`, body, `\r\n--${b}--`],
+  );
+  return { body: blob, type: `multipart/related; boundary=${b}` };
+}
+
+export interface RemoteLibrary {
+  id: string;
+  version: string;
+  modifiedTime: string;
+}
+
+export async function findLibraryFile(): Promise<RemoteLibrary | null> {
+  const root = await folder('root');
+  const f = await findOne(`appProperties has { key='fcp' and value='library' } and '${root}' in parents`);
+  return f ? { id: f.id, version: f.version || '', modifiedTime: f.modifiedTime || '' } : null;
+}
+
+export async function downloadText(fileId: string): Promise<string> {
+  const r = await api(`${API}/files/${fileId}?alt=media`);
+  return r.text();
+}
+
+export async function uploadLibrary(existingId: string | null, json: string): Promise<RemoteLibrary> {
+  const fields = 'id,version,modifiedTime';
+  if (existingId) {
+    const r = await api(`${UPLOAD}/files/${existingId}?uploadType=media&fields=${fields}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: json,
+    });
+    const j = await r.json();
+    return { id: j.id, version: j.version, modifiedTime: j.modifiedTime };
+  }
+  const root = await folder('root');
+  const mp = multipart({ name: 'Flashcard Pro library.json', parents: [root], mimeType: 'application/json', appProperties: { fcp: 'library' } }, json, 'application/json');
+  const r = await api(`${UPLOAD}/files?uploadType=multipart&fields=${fields}`, { method: 'POST', headers: { 'Content-Type': mp.type }, body: mp.body });
+  const j = await r.json();
+  return { id: j.id, version: j.version, modifiedTime: j.modifiedTime };
+}
+
+export async function uploadMedia(blob: Blob, fileName: string, mediaId: string): Promise<string> {
+  const parent = await folder('media');
+  const mp = multipart({ name: fileName, parents: [parent], appProperties: { fcp: 'media', mediaId } }, blob, blob.type || 'application/octet-stream');
+  const r = await api(`${UPLOAD}/files?uploadType=multipart&fields=id`, { method: 'POST', headers: { 'Content-Type': mp.type }, body: mp.body });
+  return (await r.json()).id;
+}
+
+export async function downloadBlob(fileId: string): Promise<Blob> {
+  const r = await api(`${API}/files/${fileId}?alt=media`);
+  return r.blob();
+}
+
+export async function uploadShare(blob: Blob, fileName: string, existingId?: string | null): Promise<string> {
+  let id: string;
+  if (existingId) {
+    try {
+      const r = await api(`${UPLOAD}/files/${existingId}?uploadType=media&fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/zip' }, body: blob });
+      id = (await r.json()).id;
+    } catch {
+      existingId = null;
+    }
+  }
+  if (!existingId) {
+    const parent = await folder('shared');
+    const mp = multipart({ name: fileName, parents: [parent], appProperties: { fcp: 'share' } }, blob, 'application/zip');
+    const r = await api(`${UPLOAD}/files?uploadType=multipart&fields=id`, { method: 'POST', headers: { 'Content-Type': mp.type }, body: mp.body });
+    id = (await r.json()).id;
+  }
+  await api(`${API}/files/${id!}/permissions?fields=id`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+  });
+  return id!;
+}
+
+export async function stopSharing(fileId: string) {
+  await api(`${API}/files/${fileId}/permissions/anyoneWithLink`, { method: 'DELETE' });
+}
+
+/** Reads a deck someone shared publicly. Uses the site's API key, no sign-in needed. */
+export async function fetchPublicFile(fileId: string): Promise<Blob> {
+  const key = driveConfig().googleApiKey;
+  if (!/^[\w-]{10,}$/.test(fileId)) throw new Error('This share link is not valid.');
+  if (key) {
+    const r = await fetch(`${API}/files/${fileId}?alt=media&key=${encodeURIComponent(key)}`);
+    if (r.ok) return r.blob();
+    if (r.status === 404 || r.status === 403) throw new Error('This deck is no longer shared, or the link is wrong.');
+  }
+  if (hasValidToken()) return downloadBlob(fileId);
+  throw new Error('Shared links need a Google API key on this site. Ask the owner to send the deck file instead.');
+}
+
+/** Test hook: lets automated tests pretend a sign-in happened. */
+export function __setTokenForTests(value: string | null) {
+  token = value ? { value, expiresAt: Date.now() + 3600_000 } : null;
+}
