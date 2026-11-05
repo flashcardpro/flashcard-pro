@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { buildBundle, readBundle, type ParsedBundle } from './bundle';
 import {
   DriveAuthError,
-  canEditFile,
+  fileAccess,
   createSharedDeckFile,
   downloadText,
   fetchPublicFile,
@@ -188,14 +188,11 @@ export async function syncSharedDeck(deckId: string) {
 }
 
 // ---------- someone opening the link ----------
-/** Edit together: Google may ask you to pick the deck file once so Flashcard Pro can save to it. */
+/** Edit together. Needs Google to have given this app access to the file first (see picker.ts). */
 export async function joinSharedDeck(fileId: string, pkg: SharedPackage): Promise<string> {
-  if (!(await canEditFile(fileId))) {
-    const { pickSharedFile } = await import('./picker');
-    const picked = await pickSharedFile(fileId, tNow('Select this deck so Flashcard Pro can save your edits'));
-    if (!picked) throw new Error(tNow('To edit together, select the deck in the Google window.'));
-    if (!(await canEditFile(fileId))) throw new Error(tNow('Google did not allow editing. Ask the owner to set the link to "Can edit".'));
-  }
+  const access = await fileAccess(fileId);
+  if (access === 'none') throw new Error(tNow('To edit together, select the deck in the Google window.'));
+  if (access === 'read') throw new Error(tNow('Google did not allow editing. Ask the owner to set the link to "Can edit".'));
   return joinAs(fileId, pkg, 'editor');
 }
 

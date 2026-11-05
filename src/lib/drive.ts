@@ -340,16 +340,21 @@ export async function makeFilePublic(fileId: string): Promise<boolean> {
   }
 }
 
-/** True when this account's sign-in can already read and write the file. */
-export async function canEditFile(fileId: string): Promise<boolean> {
+/** What this account's sign-in may do with the file through Flashcard Pro. */
+export async function fileAccess(fileId: string): Promise<'none' | 'read' | 'edit'> {
   try {
     const r = await api(`${API}/files/${fileId}?fields=id,capabilities(canEdit)`);
     const j = await r.json();
-    return !!j.capabilities?.canEdit;
+    return j.capabilities?.canEdit ? 'edit' : 'read';
   } catch (e) {
     if (e instanceof DriveAuthError) throw e;
-    return false;
+    return 'none';
   }
+}
+
+/** True when this account's sign-in can already read and write the file. */
+export async function canEditFile(fileId: string): Promise<boolean> {
+  return (await fileAccess(fileId)) === 'edit';
 }
 
 export async function stopSharing(fileId: string) {

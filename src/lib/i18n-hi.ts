@@ -993,4 +993,10 @@ export const HI: Record<string, string> = {
   'To edit together, select the deck in the Google window.': 'मिलकर बदलने के लिए Google वाली विंडो में डेक चुनें।',
   'Google did not allow editing. Ask the owner to set the link to "Can edit".': 'Google ने बदलने की अनुमति नहीं दी। मालिक से लिंक को "बदल सकते हैं" पर सेट करने को कहें।',
   'The owner now lets people edit this deck. Click Edit together to send your changes too.': 'मालिक अब लोगों को यह डेक बदलने देते हैं। अपने बदलाव भी भेजने के लिए "मिलकर बदलें" पर क्लिक करें।',
+  'One more step': 'बस एक कदम और',
+  'Open Google window': 'Google विंडो खोलें',
+  'Open the Google window again': 'Google विंडो फिर से खोलें',
+  'Google keeps your Drive private, so it asks you to select this shared deck once. In the Google window, click the deck, then click Select.': 'Google आपकी Drive को निजी रखता है, इसलिए वह एक बार यह शेयर किया गया डेक चुनने को कहता है। Google विंडो में डेक पर क्लिक करें, फिर Select पर क्लिक करें।',
+  'Waiting for you to click Select in the Google window...': 'Google विंडो में Select पर क्लिक करने का इंतज़ार है...',
+  'Your browser blocked the Google window. Allow pop-ups for this site, then try again.': 'आपके ब्राउज़र ने Google विंडो रोक दी। इस साइट के लिए पॉप-अप की अनुमति दें, फिर से कोशिश करें।',
 };
