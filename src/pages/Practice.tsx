@@ -24,7 +24,7 @@ function Prompt({ item, compact = false }: { item: StudyItem; compact?: boolean 
   const { note, face } = item;
   return (
     <div className={'prompt' + (compact ? ' is-compact' : '')}>
-      {face.kind === 'occlusion' && note.image && <CardImage image={note.image} view={{ mode: 'question', group: face.maskGroup! }} className="prompt-photo" />}
+      {face.kind === 'occlusion' && note.image && <CardImage image={note.image} view={face.maskGroup == null ? { mode: 'all' } : { mode: 'question', group: face.maskGroup }} className="prompt-photo" />}
       {face.kind !== 'occlusion' && face.imageSide === 'front' && note.image && <CardImage image={note.image} view={{ mode: 'none' }} className="prompt-photo" />}
       {face.promptHtml && <RichHtml html={face.promptHtml} className="prompt-text" />}
     </div>

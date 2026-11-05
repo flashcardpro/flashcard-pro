@@ -64,7 +64,7 @@ export function NoteEditor({ note, onChange, showDeck = true }: { note: Note; on
     const meta = await addImageMedia(f, f.name);
     const blob = await getMediaBlob(meta.id);
     if (blob) primeMediaUrl(meta.id, blob);
-    set({ image: { mediaId: meta.id, width: meta.width || 1, height: meta.height || 1, masks: [], annotations: [], side: 'front', occlusionMode: 'hideAll' } });
+    set({ image: { mediaId: meta.id, width: meta.width || 1, height: meta.height || 1, masks: [], annotations: [], side: 'front', occlusionMode: 'together' } });
   }
 
   const typeOptions = [

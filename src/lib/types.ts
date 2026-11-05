@@ -59,7 +59,8 @@ export interface NoteImage {
   masks: Mask[];
   annotations: Annotation[];
   side: 'front' | 'back';
-  occlusionMode: 'hideAll' | 'hideOne';
+  /** together: one card for the whole photo (tap to reveal). hideAll / hideOne: one card per hidden part. */
+  occlusionMode: 'together' | 'hideAll' | 'hideOne';
 }
 
 export interface Note {
@@ -163,6 +164,7 @@ export interface Settings {
   buttonTimes: Record<Rating, ButtonTime>;
   showCustomButton: boolean;
   customDays: number[];
+  photosOneCard: boolean; // existing photos were switched to one card each
   updatedAt: number;
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Volume2, VolumeX, MoreHorizontal, Pencil, Undo2, EyeOff, Pause, Flag, RotateCcw, Trophy, Grid3x3, ArrowLeft, Clock, Check, Keyboard, CalendarDays, CalendarClock, SlidersHorizontal } from 'lucide-react';
+import { X, Volume2, VolumeX, MoreHorizontal, Pencil, Undo2, EyeOff, Pause, Flag, RotateCcw, Trophy, Grid3x3, ArrowLeft, Clock, Check, Keyboard, CalendarDays, CalendarClock, SlidersHorizontal, Repeat, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore, rateCard, undoRating, updateCards, setNotesFlag, relearnCards, getLib, saveResume, updateSettings } from '../lib/store';
 import { useStudyAgain } from '../components/StudyAgain';
@@ -7,11 +7,11 @@ import { DayPickerDialog } from '../components/DayPicker';
 import { useT, useLang } from '../lib/i18n';
 import { buildQueue, previewWith, statusOf, confidenceToRating, dueInDays } from '../lib/srs';
 import { faceFor } from '../lib/cards';
-import { navigate } from '../lib/router';
+import { navigate, useRoute } from '../lib/router';
 import { endOfStudyDay, dayKey, formatDay, formatInterval, shuffle } from '../lib/util';
 import { speak, stopSpeaking, ttsSupported } from '../lib/speech';
 import { REVIEW_XP } from '../lib/gamify';
-import { CardFaceView } from '../components/CardFace';
+import { CardFaceView, isTapCard } from '../components/CardFace';
 import { Button, IconButton, Menu, MenuContent, MenuItem, MenuLabel, MenuSep, MenuSub, MenuTrigger, Progress, Kbd, Tooltip } from '../components/ui';
 import { FLAG_HEX } from '../components/NoteEditor';
 import { FLAG_COLORS, type Card, type Rating } from '../lib/types';
@@ -51,9 +51,18 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
   const customDays = [...new Set((settings.customDays?.length ? settings.customDays : [2, 5, 10, 30]).filter((d) => d >= 1))].sort((a, b) => a - b);
   const deck = deckId ? lib.decks[deckId] : null;
   const route = deckId ? `/deck/${deckId}/study/${mode}` : `/study/all/${mode}`;
+  // Opened from a card in a deck: study just that card.
+  const onlyNote = useRoute().query.get('note');
 
   const initial = useMemo(() => {
     const l = getLib();
+    if (onlyNote) {
+      const ids = Object.values(l.cards)
+        .filter((c) => c.noteId === onlyNote && !c.suspended)
+        .sort((a, b) => a.ord.localeCompare(b.ord, undefined, { numeric: true }))
+        .map((c) => c.id);
+      return { queue: ids, done: 0, total: ids.length };
+    }
     const r = l.resume.session;
     const sameSession = r && r.deckId === (deckId || 'all') && r.mode === mode && r.day === dayKey();
     if (mode === 'cram') {
@@ -67,7 +76,7 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
     if (sameSession && r) return { queue: q, done: r.index, total: r.index + q.length };
     return { queue: q, done: 0, total: q.length };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deckId, mode]);
+  }, [deckId, mode, onlyNote]);
 
   const [queue, setQueue] = useState<string[]>(initial.queue);
   const [pos, setPos] = useState(mode === 'cram' ? initial.done : 0);
@@ -91,7 +100,13 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
 
   // Study again from the card menu: keep this session in step with the new schedule.
   const again = useStudyAgain((kind, ids) => {
-    if (!card || ids[0] !== card.id || kind === 'new') return;
+    if (!card || ids[0] !== card.id) return;
+    if (mode === 'cram') {
+      setPos(pos + 1);
+      setDone(done + 1);
+      setStats((s) => ({ ...s, count: s.count + 1 }));
+      return;
+    }
     const q = queue.slice();
     q.splice(pos, 1);
     if (kind === 'relearn') q.splice(Math.min(q.length, pos + 3), 0, card.id);
@@ -101,6 +116,7 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
 
   // Remember where the person is, so signing in elsewhere resumes here.
   useEffect(() => {
+    if (onlyNote) return;
     saveResume({ route, session: { deckId: deckId || 'all', mode, queue: mode === 'cram' ? queue : queue.slice(pos), index: done, day: dayKey() } });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [done, pos]);
@@ -147,7 +163,7 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
     setUndo((u) => [...u.slice(-20), { before: res.before, logId: res.logId, queue, done }]);
     const updated = getLib().cards[card.id];
     const rest = queue.slice(pos + 1);
-    if (updated && updated.srs.due <= Date.now() + LEARN_AHEAD && updated.srs.due < endOfStudyDay()) {
+    if (updated && !onlyNote && updated.srs.due <= Date.now() + LEARN_AHEAD && updated.srs.due < endOfStudyDay()) {
       const gap = Math.min(rest.length, r === 1 ? 3 : 6);
       rest.splice(gap, 0, card.id);
       setTotal((x) => x + 1);
@@ -328,13 +344,17 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
         >
           {t('Choose a date...')}
         </MenuItem>
+        <MenuSep />
+        <MenuItem icon={<Sparkles size={15} />} hint={t('Clears its progress')} onSelect={() => again.run('new', [card.id])}>
+          {t('Start over as new')}
+        </MenuItem>
       </MenuContent>
     </Menu>
   );
   const dateDialog = <DayPickerDialog open={pickDate} onOpenChange={setPickDate} onConfirm={(due) => rate(3, due)} />;
   const ratingButtons =
     mode === 'cram' ? (
-      <div className="rate-row two">
+      <div className="rate-row three">
         <button className="rate-btn r1" onClick={() => rate(1)}>
           <b>{t('Still learning')}</b>
           <Kbd>1</Kbd>
@@ -343,6 +363,20 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
           <b>{t('Knew it')}</b>
           <Kbd>2</Kbd>
         </button>
+        <Menu>
+          <MenuTrigger asChild>
+            <button className="rate-btn r5" aria-label={t('Study this card again')}>
+              <small>
+                <Repeat size={14} />
+              </small>
+              <b>{t('Study again')}</b>
+            </button>
+          </MenuTrigger>
+          <MenuContent side="top" align="end" className="custom-due-menu">
+            <MenuLabel>{t('Study this card again')}</MenuLabel>
+            {again.list([card.id], MenuItem, MenuSep)}
+          </MenuContent>
+        </Menu>
       </div>
     ) : settings.ratingStyle === 'confidence' ? (
       <div className={'rate-row five' + (showCustom ? ' with-custom' : '')} role="group" aria-label={t('How well did you know it?')}>
@@ -430,7 +464,7 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
       </StudyTop>
 
       <div className="study-stage">
-        <div className={'flip' + (revealed ? ' is-revealed' : '')} onClick={() => !revealed && reveal()}>
+        <div className={'flip' + (revealed ? ' is-revealed' : '')} onClick={() => !revealed && !isTapCard(note, card) && reveal()}>
           <div className="flip-inner">
             <div className={`flip-face index-card deck-${lib.decks[card.deckId]?.color || 'blue'}`} aria-hidden={revealed}>
               <div className="card-corner">
@@ -440,10 +474,10 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
                 </span>
                 {note.flag && <Flag size={14} fill={FLAG_HEX[note.flag]} color={FLAG_HEX[note.flag]} />}
               </div>
-              <CardFaceView note={note} card={card} revealed={false} autoAudio={!revealed} />
+              <CardFaceView key={card.id} note={note} card={card} revealed={false} autoAudio={!revealed} />
             </div>
             <div className={`flip-face flip-back index-card deck-${lib.decks[card.deckId]?.color || 'blue'}`} aria-hidden={!revealed}>
-              {revealed && <CardFaceView note={note} card={card} revealed autoAudio />}
+              {revealed && <CardFaceView key={card.id} note={note} card={card} revealed autoAudio />}
             </div>
           </div>
         </div>

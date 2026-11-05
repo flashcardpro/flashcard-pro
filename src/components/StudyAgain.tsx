@@ -39,8 +39,8 @@ export function useStudyAgain(onDone?: (kind: StudyAgainKind, ids: string[], due
     onDone?.(kind, ids, dueAt);
   };
 
-  const items = (ids: string[], I: ItemC, Sub: SubC, Sep: SepC) => (
-    <Sub icon={<Repeat size={15} />} label={t('Study again')}>
+  const list = (ids: string[], I: ItemC, Sep: SepC) => (
+    <>
       <I icon={<RotateCcw size={15} />} hint={t('Comes back in your review today')} onSelect={() => run('relearn', ids)}>
         {t('Learn again today')}
       </I>
@@ -56,6 +56,11 @@ export function useStudyAgain(onDone?: (kind: StudyAgainKind, ids: string[], due
       <I icon={<CalendarDays size={15} />} onSelect={() => setPicking(ids)}>
         {t('Pick a day...')}
       </I>
+    </>
+  );
+  const items = (ids: string[], I: ItemC, Sub: SubC, Sep: SepC) => (
+    <Sub icon={<Repeat size={15} />} label={t('Study again')}>
+      {list(ids, I, Sep)}
     </Sub>
   );
 
@@ -72,5 +77,5 @@ export function useStudyAgain(onDone?: (kind: StudyAgainKind, ids: string[], due
       }}
     />
   );
-  return { items, dialog };
+  return { items, list, run, dialog };
 }

@@ -62,6 +62,27 @@ describe('occlusion cards', () => {
     expect(upserts).toEqual([]);
     expect(deletes).toEqual(['n1:g2']);
   });
+  it('one card per photo: all labels are the answer, and switching keeps progress', () => {
+    const lib: Library = emptyLibrary();
+    const masks = [
+      { id: 'a', kind: 'rect' as const, x: 0, y: 0, w: 1, h: 1, label: 'Mercury', group: 1 },
+      { id: 'b', kind: 'rect' as const, x: 0, y: 0, w: 1, h: 1, label: 'Venus', group: 2 },
+    ];
+    const per = note({ type: 'occlusion', image: { mediaId: 'm', width: 1, height: 1, side: 'front', occlusionMode: 'hideAll', annotations: [], masks } });
+    const t0 = Date.now();
+    for (const c of syncCardsForNote(lib, per).upserts) lib.cards[c.id] = { ...c, srs: review(c.srs, 3, t0) };
+    const one = { ...per, image: { ...per.image!, occlusionMode: 'together' as const } };
+    expect(ordsForNote(one)).toEqual(['all']);
+    const { upserts, deletes } = syncCardsForNote(lib, one);
+    expect(deletes.sort()).toEqual(['n1:g1', 'n1:g2']);
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0].id).toBe('n1:all');
+    expect(upserts[0].srs.reps).toBe(1);
+    expect(faceFor(one, upserts[0]).answerText).toBe('Mercury, Venus');
+    expect(faceFor(one, upserts[0]).maskGroup).toBeUndefined();
+    const empty = { ...one, image: { ...one.image!, masks: [] } };
+    expect(ordsForNote(empty)).toEqual([]);
+  });
 });
 
 describe('spaced repetition', () => {

@@ -130,3 +130,4 @@
     page-break-after: always;
   }
 }
+.paper-sheet .tap-hint { display: none; }

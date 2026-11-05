@@ -72,7 +72,7 @@ export async function addPhotos(files: File[] | FileList, deckId?: string | null
     try {
       const meta = await addImageMedia(f, f.name);
       const note = blankNote(deck, type);
-      note.image = { mediaId: meta.id, width: meta.width || 1, height: meta.height || 1, masks: [], annotations: [], side: 'front', occlusionMode: 'hideAll' };
+      note.image = { mediaId: meta.id, width: meta.width || 1, height: meta.height || 1, masks: [], annotations: [], side: 'front', occlusionMode: 'together' };
       const s = usePhotoQueue.getState();
       usePhotoQueue.setState({ drafts: [...s.drafts, note] });
       // warm the cache so thumbnails show instantly

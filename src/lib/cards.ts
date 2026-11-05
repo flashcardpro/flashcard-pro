@@ -55,8 +55,10 @@ export function ordsForNote(note: Note): string[] {
       return nums.length ? nums.map((n) => 'c' + n) : [];
     }
     case 'occlusion': {
-      const groups = maskGroups(note.image?.masks || []);
-      return groups.map((g) => 'g' + g);
+      const masks = note.image?.masks || [];
+      if (!masks.length) return [];
+      if ((note.image?.occlusionMode ?? 'together') === 'together') return ['all'];
+      return maskGroups(masks).map((g) => 'g' + g);
     }
   }
 }
@@ -74,13 +76,19 @@ export function syncCardsForNote(lib: Library, note: Note, ts = Date.now()): { u
     else if (c.deckId !== note.deckId) upserts.push({ ...c, deckId: note.deckId, updatedAt: ts });
     wanted.delete(c.ord);
   }
+  // Switching a photo between one card and one card per part keeps its progress.
+  const gone = existing.filter((c) => deletes.includes(c.id) && c.srs.state !== 0);
+  const inherit = (ord: string) => {
+    const from = ord === 'all' ? gone.filter((c) => c.ord.startsWith('g')) : ord.startsWith('g') ? gone.filter((c) => c.ord === 'all') : [];
+    return from.sort((a, b) => a.srs.due - b.srs.due)[0]?.srs;
+  };
   for (const ord of wanted) {
     upserts.push({
       id: cardId(note.id, ord),
       noteId: note.id,
       deckId: note.deckId,
       ord,
-      srs: emptySrs(ts),
+      srs: inherit(ord) ? { ...inherit(ord)! } : emptySrs(ts),
       suspended: false,
       buriedUntil: null,
       createdAt: ts,
@@ -113,6 +121,17 @@ export function faceFor(note: Note, card: Card): CardFace {
       answerText: stripHtml(clozeAnswer(note.front, n)),
       clozeNumber: n,
       imageSide: note.image ? note.image.side : null,
+    };
+  }
+  if (note.type === 'occlusion' && card.ord === 'all') {
+    const labels = (note.image?.masks || []).map((m) => m.label).filter(Boolean);
+    return {
+      kind: 'occlusion',
+      promptHtml: note.front,
+      answerHtml: note.back,
+      promptText: stripHtml(note.front),
+      answerText: labels.join(', ') || stripHtml(note.back),
+      imageSide: 'front',
     };
   }
   if (note.type === 'occlusion') {

@@ -7,7 +7,9 @@ export type MaskView =
   | { mode: 'none' } // just the photo + drawings
   | { mode: 'all' } // every mask hidden (editor preview, thumbnails)
   | { mode: 'question'; group: number } // studying: target highlighted
-  | { mode: 'answer'; group: number }; // studying: target revealed
+  | { mode: 'answer'; group: number } // studying: target revealed
+  | { mode: 'tap'; revealed: string[] } // one card per photo: all hidden except the parts tapped open
+  | { mode: 'reveal' }; // one card per photo, answer side: every part shown
 
 function maskPath(m: Mask) {
   if (m.kind === 'polygon' && m.points && m.points.length >= 6) {
@@ -100,6 +102,8 @@ export function CardImage({ image, view, className = '', onMaskClick }: { image:
   const masks = image.masks;
   const visible: { m: Mask; role: 'other' | 'target' | 'revealed' }[] = [];
   if (view.mode === 'all') masks.forEach((m) => visible.push({ m, role: 'other' }));
+  if (view.mode === 'tap') masks.forEach((m) => visible.push({ m, role: view.revealed.includes(m.id) ? 'revealed' : 'other' }));
+  if (view.mode === 'reveal') masks.forEach((m) => visible.push({ m, role: 'revealed' }));
   if (view.mode === 'question' || view.mode === 'answer') {
     for (const m of masks) {
       const isTarget = m.group === view.group;
@@ -108,7 +112,7 @@ export function CardImage({ image, view, className = '', onMaskClick }: { image:
     }
   }
   return (
-    <div className={'card-image ' + className} style={{ aspectRatio: `${w} / ${h}`, ['--ar' as string]: w / h }}>
+    <div className={'card-image ' + className + (onMaskClick ? ' is-tappable' : '')} style={{ aspectRatio: `${w} / ${h}`, ['--ar' as string]: w / h }}>
       {url ? (
         <img src={url} alt="" draggable={false} />
       ) : (
@@ -121,7 +125,18 @@ export function CardImage({ image, view, className = '', onMaskClick }: { image:
           <AnnotationShape key={a.id} a={a} unit={unit} />
         ))}
         {visible.map(({ m, role }) => (
-          <g key={m.id} className={'mask mask-' + role} onClick={onMaskClick ? () => onMaskClick(m) : undefined}>
+          <g
+            key={m.id}
+            className={'mask mask-' + role}
+            onClick={
+              onMaskClick
+                ? (e) => {
+                    e.stopPropagation();
+                    onMaskClick(m);
+                  }
+                : undefined
+            }
+          >
             {role === 'revealed' ? (
               <MaskShape m={m} fill="rgba(14,159,154,.10)" stroke="#0E9F9A" strokeWidth={3 * unit} dashed />
             ) : (

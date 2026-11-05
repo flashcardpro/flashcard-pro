@@ -863,3 +863,38 @@
   margin: 0;
   color: var(--ink-2);
 }
+
+/* one card per photo: tap a box to peek */
+.card-image.is-tappable .mask-other {
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.card-image.is-tappable .mask-other:hover {
+  opacity: 0.85;
+}
+.tap-hint {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+}
+.mask-answers {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.mask-answers li {
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--highlighter-wash);
+  border: 1px solid color-mix(in srgb, var(--highlighter) 70%, var(--rule));
+  font-weight: 700;
+}
+.rate-row.three {
+  grid-template-columns: repeat(3, 1fr);
+  width: min(680px, 100%);
+}

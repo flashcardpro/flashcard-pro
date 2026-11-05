@@ -35,7 +35,7 @@ import { useStore, addMediaBlob } from '../lib/store';
 import { rotateAndCrop, transformShapes } from '../lib/image';
 import { uid } from '../lib/util';
 import { useT } from '../lib/i18n';
-import { Button, Dialog, IconButton, Popover, PopoverContent, PopoverTrigger, Segmented, Select, Slider, Tooltip, Menu, MenuTrigger, MenuContent, MenuItem, MenuSep } from './ui';
+import { Button, Dialog, IconButton, Popover, PopoverContent, PopoverTrigger, Select, Slider, Tooltip, Menu, MenuTrigger, MenuContent, MenuItem, MenuSep } from './ui';
 import { toast } from 'sonner';
 import { recognize, type OcrResult } from '../lib/ocr';
 
@@ -101,6 +101,7 @@ export function ImageEditor({ image, onChange, focusMasks = true }: ImageEditorP
   const [boxW, setBoxW] = useState(800);
   const [zoom, setZoom] = useState(1);
   const [tool, setTool] = useState<Tool>(focusMasks ? 'rect' : 'pen');
+  const perPart = (image.occlusionMode || 'together') !== 'together';
   const [color, setColor] = useState('#E5484D');
   const [size, setSize] = useState(4);
   const [selected, setSelected] = useState<string | null>(null);
@@ -668,25 +669,26 @@ export function ImageEditor({ image, onChange, focusMasks = true }: ImageEditorP
           </div>
         )}
         {focusMasks && (
-          <div className="mask-panel">
+          <div className={'mask-panel' + (perPart ? '' : ' is-together')}>
             <div className="mask-panel-head">
               <h4>
                 {t('Hidden parts')} <span className="count">{image.masks.length}</span>
               </h4>
-              <Segmented
+              <Select
                 size="sm"
-                value={image.occlusionMode}
-                onChange={(v) => onChange({ ...image, occlusionMode: v })}
-                label={t('How masks show while studying')}
+                value={image.occlusionMode || 'together'}
+                onChange={(v) => onChange({ ...image, occlusionMode: v as NoteImage['occlusionMode'] })}
+                label={t('How you study this photo')}
                 options={[
-                  { value: 'hideAll', label: t('Hide all, ask one') },
-                  { value: 'hideOne', label: t('Hide one at a time') },
+                  { value: 'together', label: t('One card, tap to reveal'), hint: t('The whole photo is one card') },
+                  { value: 'hideAll', label: t('A card for each part'), hint: t('Other parts stay hidden') },
+                  { value: 'hideOne', label: t('A card for each part, others shown'), hint: t('Only the part asked about is hidden') },
                 ]}
               />
             </div>
             {image.masks.length === 0 ? (
               <p className="mask-empty">
-                <Wand2 size={16} /> {t('Drag a box over any part of the photo to hide it. Each hidden part becomes its own card. Or use')}{' '}
+                <Wand2 size={16} /> {perPart ? t('Drag a box over any part of the photo to hide it. Each hidden part becomes its own card. Or use') : t('Drag a box over any part of the photo to hide it. While studying, tap a box to reveal it. Or use')}{' '}
                 <button className="link" onClick={() => setOcrOpen(true)}>
                   {t('Read text from photo')}
                 </button>{' '}
@@ -716,6 +718,7 @@ export function ImageEditor({ image, onChange, focusMasks = true }: ImageEditorP
                         }
                       }}
                     />
+                    {perPart && (
                     <Menu>
                       <MenuTrigger asChild>
                         <button className="btn btn-ghost btn-sm mask-group-btn" aria-label={t('Card group')} onClick={(e) => e.stopPropagation()}>
@@ -733,6 +736,7 @@ export function ImageEditor({ image, onChange, focusMasks = true }: ImageEditorP
                         <MenuItem onSelect={() => commit({ masks: image.masks.map((mm) => (mm.id === m.id ? { ...mm, group: nextGroup() } : mm)) })}>{t('Its own card')}</MenuItem>
                       </MenuContent>
                     </Menu>
+                    )}
                     <IconButton
                       label={t('Move up')}
                       className="icon-btn-sm"

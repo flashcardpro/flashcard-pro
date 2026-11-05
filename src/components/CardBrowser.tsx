@@ -90,11 +90,21 @@ export function CardBrowser({ deckId, includeSub = true }: { deckId?: string; in
   const filterCount = statuses.length + types.length + flags.length + (tag ? 1 : 0);
   const decks = deckTree(lib);
 
+  // Clicking a card studies it; editing is in the right-click menu.
+  const openStudy = (noteId: string) => {
+    const n = lib.notes[noteId];
+    if (n) navigate(`/deck/${n.deckId}/study/review?note=${noteId}`);
+  };
   const actions = (ids: string[], I: typeof CtxItem, Sub: typeof CtxSub, Sep: typeof CtxSep) => {
     const cards = cardIdsOf(ids).map((id) => lib.cards[id]).filter(Boolean);
     const allPaused = cards.length > 0 && cards.every((c) => c.suspended);
     return (
       <>
+        {ids.length === 1 && (
+          <I icon={<Play size={15} />} onSelect={() => openStudy(ids[0])}>
+            {t('Study this card')}
+          </I>
+        )}
         {ids.length === 1 && (
           <I icon={<Pencil size={15} />} onSelect={() => navigate('/note/' + ids[0])}>
             {t('Edit')}
@@ -287,7 +297,7 @@ export function CardBrowser({ deckId, includeSub = true }: { deckId?: string; in
               <li key={n.id}>
                 <Ctx>
                   <CtxTrigger asChild>
-                    <article className={`card-tile status-edge-${status}` + (sel.has(n.id) ? ' is-selected' : '')} onClick={() => navigate('/note/' + n.id)}>
+                    <article className={`card-tile status-edge-${status}` + (sel.has(n.id) ? ' is-selected' : '')} onClick={() => openStudy(n.id)} title={t('Click to study. Right-click to edit.')}>
                       <button
                         className="tile-check"
                         aria-label={sel.has(n.id) ? t('Unselect') : t('Select')}

@@ -1,7 +1,7 @@
 import { useEffect, useState, lazy, Suspense } from 'react';
 import { Toaster, toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
-import { useStore, saveResume } from './lib/store';
+import { useStore, saveResume, migratePhotosToOneCard } from './lib/store';
 import { useRoute, match } from './lib/router';
 import { useT, tNow } from './lib/i18n';
 import { on } from './lib/events';
@@ -101,6 +101,16 @@ export default function App() {
   useEffect(() => {
     bootstrap().then(() => startReminderLoop());
   }, []);
+
+  // One photo is one card: switch older photos over once, after loading and after each sync.
+  useEffect(() => {
+    if (!ready) return;
+    const run = () => {
+      if (migratePhotosToOneCard() > 0) toast(tNow('Each photo is now one card. Tap a hidden part to peek at it, or show all answers at once.'), { duration: 7000 });
+    };
+    run();
+    return on('libraryReplaced', run);
+  }, [ready]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

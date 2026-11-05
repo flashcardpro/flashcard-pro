@@ -163,6 +163,7 @@ export function defaultSettings(): Settings {
     },
     showCustomButton: true,
     customDays: [2, 5, 10, 30],
+    photosOneCard: false,
     updatedAt: 0,
   };
 }

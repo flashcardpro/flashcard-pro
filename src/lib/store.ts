@@ -204,6 +204,21 @@ export function saveNotes(notes: Note[]) {
   checkBadges();
 }
 
+/**
+ * One-time switch: every photo with hidden parts becomes one card (tap to reveal), keeping its progress.
+ * The settings timestamp is left alone so this never overwrites settings saved on another device.
+ */
+export function migratePhotosToOneCard(): number {
+  const lib = getLib();
+  if (lib.settings.photosOneCard) return 0;
+  const notes = Object.values(lib.notes).filter((n) => n.type === 'occlusion' && n.image && n.image.masks.length > 0 && n.image.occlusionMode !== 'together');
+  if (notes.length) saveNotes(notes.map((n) => ({ ...n, image: { ...n.image!, occlusionMode: 'together' as const } })));
+  useStore.getState().mutate((l) => {
+    l.settings = { ...l.settings, photosOneCard: true };
+  });
+  return notes.length;
+}
+
 export function deleteNotes(ids: string[]) {
   useStore.getState().mutate((lib) => {
     const set = new Set(ids);

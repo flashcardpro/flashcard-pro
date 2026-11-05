@@ -29,7 +29,7 @@ export function StudyMenu({ deckId, due }: { deckId: string; due: number }) {
   return (
     <div className="split-btn">
       <Button variant="primary" size="lg" icon={<Play size={18} />} onClick={() => navigate(`/deck/${deckId}/study/review`)} className="split-main">
-        {due ? t('Study {n} cards', { n: due }) : t('Study')}
+        {due === 1 ? t('Study 1 card') : due ? t('Study {n} cards', { n: due }) : t('Study')}
       </Button>
       <Menu>
         <MenuTrigger asChild>
