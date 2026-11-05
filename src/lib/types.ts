@@ -34,6 +34,8 @@ export interface DeckShare {
   mode: ShareMode;
   /** owner made the link; editor edits it together; viewer only gets the owner's changes. */
   role: 'owner' | 'editor' | 'viewer';
+  /** Where the shared copy lives: a Google Sheet (current) or a plain JSON file (first version). */
+  store?: 'sheet' | 'json';
 }
 
 /** All coordinates are in image pixels of the stored image. */

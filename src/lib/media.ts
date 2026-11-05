@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getMediaBlob, putMediaBlob } from './db';
-import { downloadBlob as driveDownload, fetchPublicFile, hasValidToken, isShareConfigured } from './drive';
+import { downloadBlob as driveDownload, hasValidToken, isShareConfigured } from './drive';
 import { getLib } from './store';
 
 const urls = new Map<string, string>();
@@ -25,7 +25,8 @@ export async function getMediaBlobAny(id: string): Promise<Blob | null> {
   }
   if (isShareConfigured()) {
     try {
-      return await keep(await fetchPublicFile(meta.driveId));
+      const { publicMedia } = await import('./share');
+      return await keep(await publicMedia(meta.driveId, meta));
     } catch (e) {
       console.warn('Media download failed', e);
     }

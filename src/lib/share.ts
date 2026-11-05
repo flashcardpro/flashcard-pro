@@ -2,16 +2,21 @@ import { create } from 'zustand';
 import { buildBundle, readBundle, type ParsedBundle } from './bundle';
 import {
   DriveAuthError,
-  fileAccess,
-  createSharedDeckFile,
+  SHEET_MIME,
+  createSharedDeckSheet,
   downloadText,
   fetchPublicFile,
+  fileAccess,
   hasValidToken,
   makeFilePublic,
+  publicFileInfo,
+  publicImage,
+  readSheetText,
   setLinkRole,
   stopSharing,
   updateSharedDeckFile,
   uploadShare,
+  writeSheetText,
 } from './drive';
 import { addXp, applySharedChanges, getLib, updateDeck } from './store';
 import { getMeta, putMediaBlob, setMeta } from './db';
@@ -19,7 +24,7 @@ import { siteUrl } from './router';
 import { safeFileName, uid } from './util';
 import { tNow } from './i18n';
 import { buildPackage, copyFromPackage, hasChanges, isSharedPackage, packageKey, reconcile, type SharedPackage } from './sharedDeck';
-import type { MediaMeta, ShareMode } from './types';
+import type { DeckShare, MediaMeta, ShareMode } from './types';
 
 export function shareLink(fileId: string) {
   return siteUrl('/shared/' + fileId);
@@ -33,10 +38,28 @@ export const useShareStatus = create<Record<string, { state: ShareState; at: num
 const setStatus = (deckId: string, state: ShareState) => useShareStatus.setState({ [deckId]: { state, at: Date.now() } });
 
 // ---------- reading a link ----------
-export type SharedLink = { kind: 'live'; pkg: SharedPackage } | { kind: 'copy'; parsed: ParsedBundle };
+export type ShareStore = 'sheet' | 'json';
+export type SharedLink = { kind: 'live'; pkg: SharedPackage; store: ShareStore } | { kind: 'copy'; parsed: ParsedBundle };
+
+function parsePackage(text: string): SharedPackage {
+  let data: unknown = null;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    /* not ours */
+  }
+  if (!isSharedPackage(data)) throw new Error(tNow('This link is not a Flashcard Pro deck.'));
+  return data;
+}
 
 /** Opens a share link: a live shared deck, or an older one-time copy. No sign-in needed. */
 export async function readSharedLink(fileId: string): Promise<SharedLink> {
+  const info = await publicFileInfo(fileId).catch((e: Error) => {
+    // Older links may still open with a plain download below.
+    if (/no longer shared|not valid/.test(e.message)) throw e;
+    return null;
+  });
+  if (info?.mimeType === SHEET_MIME) return { kind: 'live', pkg: parsePackage(await readSheetText(fileId, { signedIn: false })), store: 'sheet' };
   const blob = await fetchPublicFile(fileId);
   const head = await blob.slice(0, 2).text();
   if (head === 'PK') return { kind: 'copy', parsed: await readBundle(blob) };
@@ -47,7 +70,21 @@ export async function readSharedLink(fileId: string): Promise<SharedLink> {
     /* not ours */
   }
   if (!isSharedPackage(data)) throw new Error(tNow('This link is not a Flashcard Pro deck.'));
-  return { kind: 'live', pkg: data };
+  return { kind: 'live', pkg: data, store: 'json' };
+}
+
+/** A shared photo or voice note, loaded without signing in. Photos go through the thumbnail address. */
+export async function publicMedia(driveId: string, m: { mime: string; width?: number; height?: number }): Promise<Blob> {
+  if (m.mime.startsWith('image/')) {
+    try {
+      const blob = await publicImage(driveId, Math.max(m.width || 0, m.height || 0, 400));
+      return blob.type ? blob : new Blob([blob], { type: m.mime });
+    } catch {
+      /* thumbnail not ready yet; try a plain download */
+    }
+  }
+  const blob = await fetchPublicFile(driveId);
+  return blob.type ? blob : new Blob([blob], { type: m.mime });
 }
 
 // ---------- photos ----------
@@ -75,7 +112,8 @@ export async function startLiveShare(deckId: string, mode: ShareMode): Promise<s
   if (!deck) throw new Error(tNow('Deck not found.'));
   const pkg = buildPackage(lib, deckId, mode, {});
   await publishMedia(pkg);
-  const id = await createSharedDeckFile(JSON.stringify(pkg), `${safeFileName(deck.name)} - Flashcard Pro shared deck.json`, linkRole(mode));
+  const id = await createSharedDeckSheet(`${safeFileName(deck.name)} - Flashcard Pro shared deck`, linkRole(mode));
+  await writeSheetText(id, JSON.stringify(pkg));
   if (deck.shareId) {
     try {
       await stopSharing(deck.shareId);
@@ -83,7 +121,7 @@ export async function startLiveShare(deckId: string, mode: ShareMode): Promise<s
       /* the old copy link may already be gone */
     }
   }
-  updateDeck(deckId, { share: { fileId: id, mode, role: 'owner' }, shareId: null });
+  updateDeck(deckId, { share: { fileId: id, mode, role: 'owner', store: 'sheet' }, shareId: null });
   setStatus(deckId, 'synced');
   addXp(20, 'share:' + deckId, 'share:' + deckId);
   return shareLink(id);
@@ -142,35 +180,84 @@ export async function syncSharedDecks(opts: { force?: boolean } = {}) {
   }
 }
 
-async function readRemote(fileId: string, role: 'owner' | 'editor' | 'viewer'): Promise<SharedPackage | null> {
-  const text = role === 'viewer' ? await (await fetchPublicFile(fileId)).text() : await downloadText(fileId);
+// Followers check the sheet's last-change time first (cheap) and only read it when it changed.
+const seen = new Map<string, string>();
+
+async function readRemote(share: DeckShare): Promise<SharedPackage | null | 'unchanged'> {
+  const { fileId, role } = share;
+  let text: string;
+  if (share.store === 'sheet') {
+    if (role === 'viewer') {
+      const info = await publicFileInfo(fileId);
+      if (seen.get(fileId) === info.modifiedTime) return 'unchanged';
+      text = await readSheetText(fileId, { signedIn: false });
+      seen.set(fileId, info.modifiedTime);
+    } else text = await readSheetText(fileId, { signedIn: true });
+  } else text = role === 'viewer' ? await (await fetchPublicFile(fileId)).text() : await downloadText(fileId);
+  if (!text.trim()) return null;
   const parsed = JSON.parse(text);
   return isSharedPackage(parsed) ? parsed : null;
 }
 
-export async function syncSharedDeck(deckId: string) {
+/** Moves a deck shared with the first version (a plain file, blocked by Google on some networks) to a sheet. */
+async function moveToSheet(deckId: string) {
   const deck = getLib().decks[deckId];
-  if (!deck?.share) return;
-  const { fileId, role } = deck.share;
-  // Following a view-only link works without signing in; editing needs Google.
-  if (role !== 'viewer' && !hasValidToken()) return;
-  setStatus(deckId, 'syncing');
+  if (!deck?.share || deck.share.role !== 'owner' || deck.share.store === 'sheet') return;
+  const old = deck.share.fileId;
   let remote: SharedPackage | null = null;
   try {
-    remote = await readRemote(fileId, role);
+    remote = parsePackage(await downloadText(old));
+  } catch {
+    /* start from this library */
+  }
+  const { changes, deleted } = reconcile(getLib(), deckId, remote);
+  if (hasChanges(changes)) applySharedChanges(changes);
+  const pkg = buildPackage(getLib(), deckId, deck.share.mode, deleted);
+  await publishMedia(pkg);
+  const id = await createSharedDeckSheet(`${safeFileName(deck.name)} - Flashcard Pro shared deck`, linkRole(deck.share.mode));
+  await writeSheetText(id, JSON.stringify(pkg));
+  updateDeck(deckId, { share: { ...deck.share, fileId: id, store: 'sheet' } });
+  try {
+    await stopSharing(old);
+  } catch {
+    /* already off */
+  }
+}
+
+export async function syncSharedDeck(deckId: string) {
+  let deck = getLib().decks[deckId];
+  if (!deck?.share) return;
+  // Following a view-only link works without signing in; editing needs Google.
+  if (deck.share.role !== 'viewer' && !hasValidToken()) return;
+  if (deck.share.role === 'owner' && deck.share.store !== 'sheet') {
+    await moveToSheet(deckId);
+    deck = getLib().decks[deckId];
+    if (!deck?.share) return;
+  }
+  const share = deck.share!;
+  const { fileId, role } = share;
+  setStatus(deckId, 'syncing');
+  let got: SharedPackage | null | 'unchanged' = null;
+  try {
+    got = await readRemote(share);
   } catch (e) {
     if (e instanceof DriveAuthError) throw e;
     setStatus(deckId, 'no-access');
     return;
   }
+  if (got === 'unchanged') {
+    setStatus(deckId, 'synced');
+    return;
+  }
+  const remote = got;
   if (!remote && role !== 'owner') {
     setStatus(deckId, 'no-access');
     return;
   }
   const { changes, deleted } = reconcile(getLib(), deckId, remote);
   if (hasChanges(changes)) applySharedChanges(changes);
-  const mode: ShareMode = role === 'owner' ? deck.share.mode : remote?.mode || deck.share.mode;
-  if (role !== 'owner' && mode !== deck.share.mode) updateDeck(deckId, { share: { ...deck.share, mode } });
+  const mode: ShareMode = role === 'owner' ? share.mode : remote?.mode || share.mode;
+  if (role !== 'owner' && mode !== share.mode) updateDeck(deckId, { share: { ...share, mode } });
   if (role === 'viewer') {
     setStatus(deckId, 'synced');
     return;
@@ -182,29 +269,30 @@ export async function syncSharedDeck(deckId: string) {
   const pkg = buildPackage(getLib(), deckId, mode, deleted);
   if (!remote || packageKey(pkg) !== packageKey(remote)) {
     await publishMedia(pkg);
-    await updateSharedDeckFile(fileId, JSON.stringify(pkg));
+    if (share.store === 'sheet') await writeSheetText(fileId, JSON.stringify(pkg));
+    else await updateSharedDeckFile(fileId, JSON.stringify(pkg));
   }
   setStatus(deckId, 'synced');
 }
 
 // ---------- someone opening the link ----------
 /** Edit together. Needs Google to have given this app access to the file first (see picker.ts). */
-export async function joinSharedDeck(fileId: string, pkg: SharedPackage): Promise<string> {
+export async function joinSharedDeck(fileId: string, pkg: SharedPackage, store: ShareStore): Promise<string> {
   const access = await fileAccess(fileId);
   if (access === 'none') throw new Error(tNow('To edit together, select the deck in the Google window.'));
   if (access === 'read') throw new Error(tNow('Google did not allow editing. Ask the owner to set the link to "Can edit".'));
-  return joinAs(fileId, pkg, 'editor');
+  return joinAs(fileId, pkg, 'editor', store);
 }
 
 /** Add a view-only deck that keeps getting the owner's changes. Works without signing in. */
-export function followSharedDeck(fileId: string, pkg: SharedPackage): string {
-  return joinAs(fileId, pkg, 'viewer');
+export function followSharedDeck(fileId: string, pkg: SharedPackage, store: ShareStore): string {
+  return joinAs(fileId, pkg, 'viewer', store);
 }
 
-function joinAs(fileId: string, pkg: SharedPackage, role: 'editor' | 'viewer'): string {
+function joinAs(fileId: string, pkg: SharedPackage, role: 'editor' | 'viewer', store: ShareStore): string {
   const { changes } = reconcile(getLib(), pkg.rootId, pkg);
   applySharedChanges(changes);
-  updateDeck(pkg.rootId, { share: { fileId, mode: pkg.mode, role } });
+  updateDeck(pkg.rootId, { share: { fileId, mode: pkg.mode, role, store } });
   setStatus(pkg.rootId, 'synced');
   lastLib = getLib();
   lastRun = Date.now();
@@ -227,11 +315,11 @@ export async function addSharedCopy(pkg: SharedPackage): Promise<string> {
     if (getLib().media[id]) continue;
     let blob: Blob | null = null;
     try {
-      if (m.driveId) blob = await fetchPublicFile(m.driveId);
+      if (m.driveId) blob = await publicMedia(m.driveId, m);
     } catch {
       /* photo no longer shared */
     }
-    if (blob) await putMediaBlob(id, blob.type ? blob : new Blob([blob], { type: m.mime }));
+    if (blob) await putMediaBlob(id, blob);
     media.push({ id, mime: m.mime, size: m.size, width: m.width, height: m.height, driveId: blob ? null : m.driveId, createdAt: ts, updatedAt: ts });
   }
   applySharedChanges({ decks, notes, deleteNotes: [], deleteDecks: [], media });

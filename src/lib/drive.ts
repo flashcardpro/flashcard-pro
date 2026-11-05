@@ -361,17 +361,130 @@ export async function stopSharing(fileId: string) {
   await api(`${API}/files/${fileId}/permissions/anyoneWithLink`, { method: 'DELETE' });
 }
 
-/** Reads a deck someone shared publicly. Uses the site's API key, no sign-in needed. */
+export const BLOCKED_MESSAGE =
+  'Google is not letting this internet connection download shared files right now (it limits downloads without sign-in). Try again in a while, or on another network.';
+
+/** Reads a file someone shared publicly. Uses the site's API key, no sign-in needed. */
 export async function fetchPublicFile(fileId: string): Promise<Blob> {
   const key = driveConfig().googleApiKey;
   if (!/^[\w-]{10,}$/.test(fileId)) throw new Error('This share link is not valid.');
   if (key) {
-    const r = await fetch(`${API}/files/${fileId}?alt=media&key=${encodeURIComponent(key)}`, { cache: 'no-store' });
-    if (r.ok) return r.blob();
-    if (r.status === 404 || r.status === 403) throw new Error('This deck is no longer shared, or the link is wrong.');
+    let r: Response | null = null;
+    try {
+      r = await fetch(`${API}/files/${fileId}?alt=media&key=${encodeURIComponent(key)}`, { cache: 'no-store' });
+    } catch {
+      // Google answers "unusual traffic" without the headers browsers need, so it looks like a network error.
+      r = null;
+    }
+    if (r?.ok) return r.blob();
+    if (r && (r.status === 404 || r.status === 403) && !hasValidToken()) throw new Error('This deck is no longer shared, or the link is wrong.');
+    if (hasValidToken()) {
+      try {
+        return await downloadBlob(fileId);
+      } catch {
+        /* not in this account's Drive */
+      }
+    }
+    if (!r) throw new Error(BLOCKED_MESSAGE);
+    throw new Error(r.status === 404 || r.status === 403 ? 'This deck is no longer shared, or the link is wrong.' : BLOCKED_MESSAGE);
   }
   if (hasValidToken()) return downloadBlob(fileId);
   throw new Error('Shared links need a Google API key on this site. Ask the owner to send the deck file instead.');
+}
+
+// ---------- reading shared things without signing in ----------
+// Google limits plain downloads without sign-in, so shared decks avoid them: the deck lives in a
+// Google Sheet (read through the Sheets service) and photos load through their thumbnail address.
+const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
+export const SHEET_MIME = 'application/vnd.google-apps.spreadsheet';
+const CELL = 40_000; // a Sheets cell holds up to 50,000 characters
+
+function keyParam(): string {
+  const key = driveConfig().googleApiKey;
+  if (!key) throw new Error('Shared links need a Google API key on this site.');
+  return 'key=' + encodeURIComponent(key);
+}
+
+async function publicGet(url: string): Promise<Response> {
+  let r: Response;
+  try {
+    r = await fetch(url + (url.includes('?') ? '&' : '?') + keyParam(), { cache: 'no-store' });
+  } catch {
+    throw new Error(BLOCKED_MESSAGE);
+  }
+  if (r.status === 404 || r.status === 403) throw new Error('This deck is no longer shared, or the link is wrong.');
+  if (!r.ok) throw new Error(`Google answered ${r.status}. Try again in a moment.`);
+  return r;
+}
+
+export interface PublicFileInfo {
+  id: string;
+  name: string;
+  mimeType: string;
+  modifiedTime: string;
+}
+
+/** Name, type and last change of a file shared by link. */
+export async function publicFileInfo(fileId: string): Promise<PublicFileInfo> {
+  if (!/^[\w-]{10,}$/.test(fileId)) throw new Error('This share link is not valid.');
+  return (await publicGet(`${API}/files/${fileId}?fields=id,name,mimeType,modifiedTime`)).json();
+}
+
+/** A shared photo at full size, through Google's thumbnail address. */
+export async function publicImage(fileId: string, size = 2400): Promise<Blob> {
+  const j = await (await publicGet(`${API}/files/${fileId}?fields=thumbnailLink`)).json();
+  if (!j.thumbnailLink) throw new Error('Photo not ready yet.');
+  const url = String(j.thumbnailLink).replace(/=s\d+(-[\w-]+)?$/, '') + '=s' + Math.round(size);
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Photo could not load.');
+  return r.blob();
+}
+
+/** Creates an empty Google Sheet for a shared deck and opens it to anyone with the link. */
+export async function createSharedDeckSheet(name: string, role: 'reader' | 'writer'): Promise<string> {
+  const parent = await folder('shared');
+  const r = await api(`${API}/files?fields=id`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, mimeType: SHEET_MIME, parents: [parent], appProperties: { fcp: 'sharedDeck' } }),
+  });
+  const id = (await r.json()).id as string;
+  await setLinkRole(id, role);
+  return id;
+}
+
+/** Splits text into cells without breaking a two-part character (like an emoji) in half. */
+export function toCells(text: string): string[] {
+  const out: string[] = [];
+  let i = 0;
+  while (i < text.length) {
+    let end = Math.min(text.length, i + CELL);
+    const c = text.charCodeAt(end - 1);
+    if (end < text.length && c >= 0xd800 && c <= 0xdbff) end--;
+    out.push(text.slice(i, end));
+    i = end;
+  }
+  return out.length ? out : [''];
+}
+
+/** Saves text into column A of the deck's sheet (signed in, with edit access). */
+export async function writeSheetText(sheetId: string, text: string) {
+  const cells = toCells(text);
+  const n = cells.length;
+  await api(`${SHEETS}/${sheetId}/values/A1:A${n}?valueInputOption=RAW`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ range: `A1:A${n}`, majorDimension: 'ROWS', values: cells.map((c) => [c]) }),
+  });
+  if (n < 1000) await api(`${SHEETS}/${sheetId}/values/A${n + 1}:A:clear`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+}
+
+/** Reads the text back. Without sign-in it uses the site's key (the sheet must be shared by link). */
+export async function readSheetText(sheetId: string, opts: { signedIn: boolean }): Promise<string> {
+  const url = `${SHEETS}/${sheetId}/values/A:A?majorDimension=ROWS`;
+  const r = opts.signedIn ? await api(url) : await publicGet(url);
+  const j = await r.json();
+  return ((j.values as string[][]) || []).map((row) => row[0] || '').join('');
 }
 
 /** Test hook: lets automated tests pretend a sign-in happened. */

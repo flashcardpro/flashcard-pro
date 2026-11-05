@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, PackageOpen, AlertTriangle, Layers, Eye, PencilLine, Users, CopyPlus, ArrowRight, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
-import { fetchPublicFile, fileAccess, hasValidToken } from '../lib/drive';
+import { fileAccess, hasValidToken } from '../lib/drive';
 import { importBundle, type ParsedBundle } from '../lib/bundle';
 import { primeMediaUrl } from '../lib/media';
 import { useLang, useT } from '../lib/i18n';
 import { navigate } from '../lib/router';
 import { useStore } from '../lib/store';
-import { addSharedCopy, followSharedDeck, joinSharedDeck, readSharedLink } from '../lib/share';
+import { addSharedCopy, followSharedDeck, joinSharedDeck, publicMedia, readSharedLink, type ShareStore } from '../lib/share';
 import type { SharedPackage } from '../lib/sharedDeck';
 import type { Note } from '../lib/types';
 import { Button, Dialog, Empty } from '../components/ui';
@@ -88,7 +88,7 @@ function ErrorView({ message }: { message: string }) {
   );
 }
 
-function LiveShared({ fileId, pkg }: { fileId: string; pkg: SharedPackage }) {
+function LiveShared({ fileId, pkg, store }: { fileId: string; pkg: SharedPackage; store: ShareStore }) {
   const t = useT();
   const user = useStore((s) => s.user);
   const joined = useStore((s) => Object.values(s.lib.decks).find((d) => d.share?.fileId === fileId) || null);
@@ -115,7 +115,7 @@ function LiveShared({ fileId, pkg }: { fileId: string; pkg: SharedPackage }) {
   }
 
   async function finishJoin() {
-    const id = await joinSharedDeck(fileId, pkg);
+    const id = await joinSharedDeck(fileId, pkg, store);
     toast.success(t('You can now edit this deck together. Changes sync both ways.'));
     navigate('/deck/' + id);
   }
@@ -173,7 +173,7 @@ function LiveShared({ fileId, pkg }: { fileId: string; pkg: SharedPackage }) {
         const email = useStore.getState().user?.email || '';
         setPick({ url: await pickerUrl(fileId, t('Select this deck so Flashcard Pro can save your edits'), email, lang), waiting: false });
       } else if (kind === 'follow') {
-        const id = followSharedDeck(fileId, pkg);
+        const id = followSharedDeck(fileId, pkg, store);
         toast.success(t('Deck added. You will get changes from the owner.'));
         navigate('/deck/' + id);
       } else {
@@ -240,7 +240,7 @@ function LiveShared({ fileId, pkg }: { fileId: string; pkg: SharedPackage }) {
           </p>
         </div>
       </header>
-      <Preview notes={pkg.notes} photoFor={async (id) => (pkg.media[id]?.driveId ? fetchPublicFile(pkg.media[id].driveId!) : null)} />
+      <Preview notes={pkg.notes} photoFor={async (id) => (pkg.media[id]?.driveId ? publicMedia(pkg.media[id].driveId!, pkg.media[id]) : null)} />
       {signIn.dialogs}
       <Dialog
         open={!!pick}
@@ -342,7 +342,7 @@ export function SharedDeckPage({ fileId }: { fileId: string }) {
 
   const view = useMemo(() => {
     if (!link) return null;
-    return link.kind === 'live' ? <LiveShared fileId={fileId} pkg={link.pkg} /> : <CopyShared parsed={link.parsed} />;
+    return link.kind === 'live' ? <LiveShared fileId={fileId} pkg={link.pkg} store={link.store} /> : <CopyShared parsed={link.parsed} />;
   }, [link, fileId]);
 
   if (error) return <ErrorView message={error} />;
