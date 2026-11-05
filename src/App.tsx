@@ -178,7 +178,8 @@ export default function App() {
       </Shell>
       <CommandPalette open={palette} onOpenChange={setPalette} onAddPhotos={picker.open} />
       {picker.inputs}
-      <Toaster position="bottom-center" offset={84} closeButton richColors={false} toastOptions={{ className: 'toast' }} />
+      {/* While studying, messages go to the top so they never cover the rating buttons. */}
+      <Toaster position={full ? 'top-center' : 'bottom-center'} offset={full ? 64 : 84} closeButton richColors={false} toastOptions={{ className: 'toast' }} />
     </TooltipProvider>
   );
 }

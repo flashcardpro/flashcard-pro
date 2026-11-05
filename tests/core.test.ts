@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { clozeNumbers, renderCloze, ordsForNote, syncCardsForNote, faceFor, nextClozeNumber } from '../src/lib/cards';
-import { emptySrs, review, statusOf, buildQueue, preview, confidenceToRating } from '../src/lib/srs';
+import { emptySrs, review, statusOf, buildQueue, preview, confidenceToRating, reviewOnDate, dueInDays, dueOnDate } from '../src/lib/srs';
 import { mergeLibraries } from '../src/lib/merge';
 import { emptyLibrary, newDeck, gradeAnswer, dayKey, formatInterval } from '../src/lib/util';
 import { parseTermList, guessOptions, parseCsv } from '../src/lib/textImport';
@@ -76,6 +76,18 @@ describe('spaced repetition', () => {
     const p = preview(s, s.due);
     expect(p[1]).toBeLessThan(p[3]);
     expect(p[3]).toBeLessThan(p[4]);
+  });
+  it('custom button moves the next review to the chosen day', () => {
+    const t0 = new Date(2026, 10, 5, 21, 30).getTime();
+    const due = dueInDays(5, t0);
+    expect(new Date(due).getDate()).toBe(10);
+    expect(new Date(due).getHours()).toBe(4);
+    const s = reviewOnDate(emptySrs(t0), due, t0);
+    expect(s.due).toBe(due);
+    expect(s.state).toBe(2);
+    expect(s.reps).toBe(1);
+    expect(s.scheduled_days).toBe(4);
+    expect(new Date(dueOnDate('2026-12-25')).getDate()).toBe(25);
   });
   it('maps confidence 1-5 to ratings', () => {
     expect([1, 2, 3, 4, 5].map((c) => confidenceToRating(c as 1))).toEqual([1, 2, 3, 3, 4]);

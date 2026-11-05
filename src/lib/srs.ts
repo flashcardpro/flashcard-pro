@@ -1,6 +1,6 @@
 import { createEmptyCard, fsrs, generatorParameters, Rating as FR, type Card as FCard, type FSRS } from 'ts-fsrs';
 import type { Card, CardStatus, Deck, Library, Rating, SrsState } from './types';
-import { dayKey, endOfStudyDay, startOfStudyDay } from './util';
+import { DAY_START_HOUR, dayKey, endOfStudyDay, startOfStudyDay } from './util';
 
 const MASTERED_DAYS = 21;
 const LEARN_AHEAD_MS = 20 * 60_000;
@@ -57,6 +57,29 @@ const RATING_MAP: Record<Rating, FR.Again | FR.Hard | FR.Good | FR.Easy> = {
 export function review(s: SrsState, rating: Rating, ts = Date.now(), retention = 0.9): SrsState {
   const res = scheduler(retention).next(toF(s), new Date(ts), RATING_MAP[rating]);
   return fromF(res.card);
+}
+
+/**
+ * The learner picks the day the card comes back (the Custom button).
+ * Memory is updated as if they answered Good, then the next review is moved to that day.
+ */
+export function reviewOnDate(s: SrsState, dueAt: number, ts = Date.now(), retention = 0.9): SrsState {
+  const good = review(s, 3, ts, retention);
+  const days = Math.max(1, Math.round((dueAt - ts) / 86_400_000));
+  return { ...good, state: 2, learning_steps: 0, due: dueAt, scheduled_days: days };
+}
+
+/** The start (4 AM) of the study day `days` days from now. */
+export function dueInDays(days: number, ts = Date.now()): number {
+  const d = new Date(startOfStudyDay(ts));
+  d.setDate(d.getDate() + days);
+  return d.getTime();
+}
+
+/** The start (4 AM) of a calendar date given as YYYY-MM-DD. */
+export function dueOnDate(key: string): number {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d, DAY_START_HOUR).getTime();
 }
 
 /** Interval (ms from now) each rating would give. */

@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Volume2, VolumeX, MoreHorizontal, Pencil, Undo2, EyeOff, Pause, Flag, RotateCcw, Trophy, Grid3x3, ArrowLeft, Clock, Check, Keyboard } from 'lucide-react';
+import { X, Volume2, VolumeX, MoreHorizontal, Pencil, Undo2, EyeOff, Pause, Flag, RotateCcw, Trophy, Grid3x3, ArrowLeft, Clock, Check, Keyboard, CalendarDays, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore, rateCard, undoRating, updateCards, setNotesFlag, resetCards, getLib, saveResume, updateSettings } from '../lib/store';
 import { useT, useLang } from '../lib/i18n';
-import { buildQueue, preview, statusOf, confidenceToRating } from '../lib/srs';
+import { buildQueue, preview, statusOf, confidenceToRating, dueInDays, dueOnDate } from '../lib/srs';
 import { faceFor } from '../lib/cards';
 import { navigate } from '../lib/router';
-import { endOfStudyDay, dayKey, formatInterval, shuffle } from '../lib/util';
+import { endOfStudyDay, startOfStudyDay, dayKey, formatInterval, shuffle } from '../lib/util';
 import { speak, stopSpeaking, ttsSupported } from '../lib/speech';
 import { REVIEW_XP } from '../lib/gamify';
 import { CardFaceView } from '../components/CardFace';
-import { Button, IconButton, Menu, MenuContent, MenuItem, MenuSep, MenuSub, MenuTrigger, Progress, Kbd, Tooltip } from '../components/ui';
+import { Button, Dialog, IconButton, Menu, MenuContent, MenuItem, MenuLabel, MenuSep, MenuSub, MenuTrigger, Progress, Kbd, Tooltip } from '../components/ui';
 import { FLAG_HEX } from '../components/NoteEditor';
 import { FLAG_COLORS, type Card, type Rating } from '../lib/types';
 
@@ -73,6 +73,9 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
   const [undo, setUndo] = useState<UndoEntry[]>([]);
   const [stats, setStats] = useState({ count: 0, again: 0, xp: 0, ms: 0 });
   const [showKeys, setShowKeys] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [pickDate, setPickDate] = useState(false);
+  const [pickedDay, setPickedDay] = useState('');
   const shownAt = useRef(Date.now());
   const sessionStart = useRef(Date.now());
 
@@ -106,7 +109,7 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
     if (settings.ttsAuto && card && note) speak(faceFor(note, card).answerText, deck?.ttsLang || '');
   }
 
-  function rate(r: Rating) {
+  function rate(r: Rating, dueAt?: number) {
     if (!card || !note) return;
     const ms = Date.now() - shownAt.current;
     if (mode === 'cram') {
@@ -120,8 +123,9 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
       setStats((s) => ({ ...s, count: s.count + 1, again: s.again + (r === 1 ? 1 : 0), ms: s.ms + ms }));
       return;
     }
-    const res = rateCard(card.id, r, ms);
+    const res = rateCard(card.id, r, ms, dueAt);
     if (!res) return;
+    if (dueAt) toast(t('This card comes back on {date}.', { date: formatDay(dueAt, lang) }));
     setUndo((u) => [...u.slice(-20), { before: res.before, logId: res.logId, queue, done }]);
     const updated = getLib().cards[card.id];
     const rest = queue.slice(pos + 1);
@@ -189,6 +193,11 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
           e.preventDefault();
           rate(3);
         }
+      }
+      if (revealed && mode === 'review' && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        setCustomOpen(true);
+        return;
       }
       if (e.key.toLowerCase() === 'e' && note) navigate('/note/' + note.id);
       if (e.key.toLowerCase() === 'r' && card && note) speak(revealed ? faceFor(note, card).answerText : faceFor(note, card).promptText, deck?.ttsLang || '');
@@ -259,6 +268,76 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
   }
 
   const status = statusOf(card);
+  const customButton = (
+    <Menu open={customOpen} onOpenChange={setCustomOpen}>
+      <MenuTrigger asChild>
+        <button className="rate-btn r5" aria-label={t('Choose when this card comes back')}>
+          <small>
+            <CalendarDays size={14} />
+          </small>
+          <b>{t('Custom')}</b>
+          <Kbd>C</Kbd>
+        </button>
+      </MenuTrigger>
+      <MenuContent side="top" align="end" className="custom-due-menu">
+        <MenuLabel>{t('Show this card again in')}</MenuLabel>
+        {CUSTOM_DAYS.map((d) => (
+          <MenuItem key={d} icon={<CalendarClock size={15} />} hint={formatDay(dueInDays(d), lang)} onSelect={() => rate(3, dueInDays(d))}>
+            {t('{n} days', { n: d })}
+          </MenuItem>
+        ))}
+        <MenuSep />
+        <MenuItem
+          icon={<CalendarDays size={15} />}
+          onSelect={() => {
+            setPickedDay(dayKey(dueInDays(7)));
+            setPickDate(true);
+          }}
+        >
+          {t('Choose a date...')}
+        </MenuItem>
+      </MenuContent>
+    </Menu>
+  );
+  const pickedDue = pickedDay ? dueOnDate(pickedDay) : 0;
+  const pickedDays = pickedDue ? Math.round((pickedDue - startOfStudyDay()) / 86_400_000) : 0;
+  const dateDialog = (
+    <Dialog
+      open={pickDate}
+      onOpenChange={setPickDate}
+      title={t('Choose a date')}
+      description={t('The card comes back on the morning of this day.')}
+      size="sm"
+      footer={
+        <>
+          <Button variant="ghost" onClick={() => setPickDate(false)}>
+            {t('Cancel')}
+          </Button>
+          <Button
+            variant="primary"
+            icon={<CalendarClock size={16} />}
+            disabled={pickedDays < 1}
+            onClick={() => {
+              setPickDate(false);
+              rate(3, pickedDue);
+            }}
+          >
+            {t('Schedule card')}
+          </Button>
+        </>
+      }
+    >
+      <input
+        type="date"
+        className="input"
+        min={dayKey(dueInDays(1))}
+        value={pickedDay}
+        onChange={(e) => setPickedDay(e.target.value)}
+        aria-label={t('Choose a date')}
+      />
+      <p className="muted small custom-due-note">{pickedDays >= 1 ? t('{date}, in {n} days', { date: formatDay(pickedDue, lang), n: pickedDays }) : t('Pick a day after today.')}</p>
+    </Dialog>
+  );
   const ratingButtons =
     mode === 'cram' ? (
       <div className="rate-row two">
@@ -272,7 +351,7 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
         </button>
       </div>
     ) : settings.ratingStyle === 'confidence' ? (
-      <div className="rate-row five" role="group" aria-label={t('How well did you know it?')}>
+      <div className="rate-row five with-custom" role="group" aria-label={t('How well did you know it?')}>
         {[1, 2, 3, 4, 5].map((c) => {
           const r = confidenceToRating(c as 1 | 2 | 3 | 4 | 5);
           return (
@@ -283,9 +362,10 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
             </button>
           );
         })}
+        {customButton}
       </div>
     ) : (
-      <div className="rate-row" role="group" aria-label={t('How well did you know it?')}>
+      <div className="rate-row with-custom" role="group" aria-label={t('How well did you know it?')}>
         {([1, 2, 3, 4] as Rating[]).map((r) => (
           <button key={r} className={'rate-btn r' + r} onClick={() => rate(r)}>
             <small>{intervals ? formatInterval(intervals[r], lang) : ''}</small>
@@ -293,6 +373,7 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
             <Kbd>{r}</Kbd>
           </button>
         ))}
+        {customButton}
       </div>
     );
 
@@ -388,13 +469,21 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
           ratingButtons
         )}
         {revealed && mode === 'review' && (
-          <Tooltip text={t('Again: forgot it. Hard: got it with effort. Good: remembered. Easy: instant.')}>
+          <Tooltip text={t('Again: forgot it. Hard: got it with effort. Good: remembered. Easy: instant. Custom: you pick the day.')}>
             <p className="rate-hint">{t('How well did you know it?')}</p>
           </Tooltip>
         )}
       </footer>
+      {dateDialog}
     </div>
   );
+}
+
+const CUSTOM_DAYS = [2, 5, 10, 30];
+
+/** A short weekday and date, like "Sat, 7 Nov". */
+function formatDay(ts: number, lang: string): string {
+  return new Date(ts).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 function deckDescendantsSet(lib: ReturnType<typeof getLib>, id: string): Set<string> {

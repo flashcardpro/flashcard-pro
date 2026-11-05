@@ -4,7 +4,7 @@ import { emptyLibrary, newDeck, now, uid, debounce, dayKey } from './util';
 import { GUEST_KEY, loadLibrary, putMediaBlob, saveLibrary } from './db';
 import { normalizeLibrary } from './merge';
 import { syncCardsForNote } from './cards';
-import { review as srsReview, emptySrs, deckDescendants } from './srs';
+import { review as srsReview, reviewOnDate, emptySrs, deckDescendants } from './srs';
 import { newlyEarned, levelInfo, totalXp, todayReviews } from './gamify';
 import { emit } from './events';
 import { prepareImage } from './image';
@@ -244,14 +244,15 @@ export function resetCards(ids: string[]) {
   updateCards(ids, () => ({ srs: emptySrs(), suspended: false, buriedUntil: null }));
 }
 
-export function rateCard(cardId: string, rating: Rating, ms: number): { before: Card; logId: string } | null {
+/** Rates a card. With `dueAt`, the learner chose the day it comes back (counted as Good). */
+export function rateCard(cardId: string, rating: Rating, ms: number, dueAt?: number): { before: Card; logId: string } | null {
   const lib = getLib();
   const card = lib.cards[cardId];
   if (!card) return null;
   const t = now();
   const levelBefore = levelInfo(totalXp(lib)).level;
   const reviewsBefore = todayReviews(lib, t);
-  const srs = srsReview(card.srs, rating, t, lib.settings.retention);
+  const srs = dueAt ? reviewOnDate(card.srs, dueAt, t, lib.settings.retention) : srsReview(card.srs, rating, t, lib.settings.retention);
   const logId = uid();
   useStore.getState().mutate((l) => {
     putAll(l, 'cards', [{ ...card, srs, updatedAt: t }]);

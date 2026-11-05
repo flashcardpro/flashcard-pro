@@ -12,6 +12,7 @@ export function HelpPage() {
     ['N', t('New text card')],
     ['Space', t('Show answer, then rate Good')],
     ['1 2 3 4', t('Again, Hard, Good, Easy')],
+    ['C', t('Choose the day a card comes back')],
     ['Ctrl Z', t('Undo the last rating')],
     ['E', t('Edit the current card while studying')],
     ['R', t('Read the card aloud')],

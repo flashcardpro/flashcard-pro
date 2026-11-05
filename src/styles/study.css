@@ -802,3 +802,47 @@
 .answer-math {
   display: inline;
 }
+
+/* Custom button: pick the day a card comes back */
+.rate-row.with-custom {
+  grid-template-columns: repeat(5, 1fr);
+  width: min(760px, 100%);
+}
+.rate-row.five.with-custom {
+  grid-template-columns: repeat(6, 1fr);
+  width: min(860px, 100%);
+}
+.rate-btn.r5 {
+  border-style: dashed;
+  border-bottom-style: solid;
+  border-color: color-mix(in srgb, var(--s-mastered) 55%, var(--rule));
+  color: var(--s-mastered);
+}
+.rate-btn.r5 small {
+  color: inherit;
+  display: inline-flex;
+}
+.rate-btn.r5:hover,
+.rate-btn.r5[data-state='open'] {
+  background: color-mix(in srgb, var(--s-mastered) 10%, var(--card));
+}
+.custom-due-menu {
+  min-width: 250px;
+}
+.custom-due-note {
+  margin: 10px 0 0;
+}
+@media (max-width: 560px) {
+  .rate-row.with-custom {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .rate-row.five.with-custom {
+    grid-template-columns: repeat(5, 1fr);
+  }
+  .rate-row.with-custom .rate-btn.r5 {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    min-height: 44px;
+    gap: 8px;
+  }
+}
