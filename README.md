@@ -2,7 +2,7 @@
 
 Photo flashcards that remember for you. Snap a diagram, your notes or a textbook page, hide the parts you want to learn, and study each one right before you would forget it. Everything is saved in your own Google Drive.
 
-**Live site:** https://nilesh16171517.github.io/flashcard-pro/
+**Live site:** https://flashcard-pro.github.io/flashcard-pro/
 
 ## What it does
 

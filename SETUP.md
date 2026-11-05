@@ -4,7 +4,7 @@ Flashcard Pro has no server. Each person signs in with Google in their browser, 
 
 Both values are public by design (any web page that uses them shows them), so they go in `public/config.js`. You protect them by restricting them to your site address.
 
-Your site address on GitHub Pages: `https://nilesh16171517.github.io`
+Your site address on GitHub Pages: `https://flashcard-pro.github.io`
 
 ## 1. Create a Google Cloud project
 
@@ -24,14 +24,14 @@ Your site address on GitHub Pages: `https://nilesh16171517.github.io`
 ## 3. Create the OAuth Client ID
 
 1. **Clients** (or **Credentials**), **Create client**, type **Web application**.
-2. **Authorized JavaScript origins**: add `https://nilesh16171517.github.io` and, for local testing, `http://localhost:5173`.
+2. **Authorized JavaScript origins**: add `https://flashcard-pro.github.io` and, for local testing, `http://localhost:5173`.
 3. Leave redirect URIs empty. **Create**, then copy the **Client ID** (ends in `.apps.googleusercontent.com`).
 
 ## 4. Create the API key (for share links)
 
 1. **Credentials**, **Create credentials**, **API key**.
 2. **Edit API key**:
-   - Application restrictions: **Websites**, add `https://nilesh16171517.github.io/*`
+   - Application restrictions: **Websites**, add `https://flashcard-pro.github.io/*`
    - API restrictions: **Restrict key**, choose **Google Drive API**
 3. Save and copy the key.
 
