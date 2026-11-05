@@ -146,7 +146,7 @@ function AccountMenu({ onSignIn }: { onSignIn: () => void }) {
   return (
     <Menu>
       <MenuTrigger asChild>
-        <button className="avatar-btn" aria-label={t('Account')}>
+        <button className="avatar-btn" aria-label={t('Account')} data-no-auto-reconnect>
           {user.picture ? <img src={user.picture} alt="" referrerPolicy="no-referrer" /> : <span>{user.name.slice(0, 1)}</span>}
         </button>
       </MenuTrigger>

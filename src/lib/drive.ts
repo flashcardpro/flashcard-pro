@@ -58,8 +58,47 @@ export function tokenExpiresAt(): number {
   return token?.expiresAt ?? 0;
 }
 
+const TOKEN_KEY = 'fcp-drive-token';
+
+/**
+ * Google gives the browser a one-hour key for Drive. Keeping it in this browser (for that
+ * account only) means a page reload does not ask you to reconnect while it is still valid.
+ */
+export function rememberToken(sub: string) {
+  if (!token) return;
+  try {
+    localStorage.setItem(TOKEN_KEY, JSON.stringify({ sub, value: token.value, expiresAt: token.expiresAt }));
+  } catch {
+    /* storage blocked: you reconnect after a reload, nothing else changes */
+  }
+}
+
+/** Uses the saved key after a reload, if it belongs to this account and has not run out. */
+export function restoreToken(sub: string): boolean {
+  try {
+    const saved = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null');
+    if (saved && saved.sub === sub && saved.value && saved.expiresAt - 60_000 > Date.now()) {
+      token = { value: saved.value, expiresAt: saved.expiresAt };
+      return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
+
 export function clearToken() {
   token = null;
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Loads Google's sign-in script early so a reconnect can open its window straight away. */
+export function preloadGoogle() {
+  if (isDriveConfigured()) void loadGis().catch(() => {});
 }
 
 async function requestToken(prompt: '' | 'consent' | 'select_account', hint?: string): Promise<string> {

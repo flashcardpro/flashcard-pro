@@ -173,7 +173,7 @@ export function SettingsPage() {
         {user ? (
           <>
             <Row label={user.name} hint={user.email}>
-              <Button variant="ghost" icon={<LogOut size={15} />} onClick={async () => (await signOut(), toast(t('Signed out. Your cards stay in your Google Drive.')))}>
+              <Button variant="ghost" icon={<LogOut size={15} />} data-no-auto-reconnect onClick={async () => (await signOut(), toast(t('Signed out. Your cards stay in your Google Drive.')))}>
                 {t('Sign out')}
               </Button>
             </Row>

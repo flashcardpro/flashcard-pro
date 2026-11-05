@@ -7,8 +7,12 @@ import {
   findLibraryFile,
   hasValidToken,
   isDriveConfigured,
+  preloadGoogle,
+  rememberToken,
   resetDriveCache,
+  restoreToken,
   signIn,
+  tokenExpiresAt,
   uploadLibrary,
   uploadMedia,
 } from './drive';
@@ -53,6 +57,7 @@ export async function syncNow(): Promise<boolean> {
   }
   if (!hasValidToken()) {
     st.setSync({ syncStatus: 'paused' });
+    armAutoReconnect();
     return false;
   }
   if (running) {
@@ -115,6 +120,7 @@ export async function syncNow(): Promise<boolean> {
   } catch (e) {
     if (e instanceof DriveAuthError) {
       useStore.getState().setSync({ syncStatus: 'paused' });
+      armAutoReconnect();
     } else {
       console.error(e);
       useStore.getState().setSync({ syncStatus: 'error', syncError: (e as Error).message });
@@ -146,7 +152,38 @@ export function startSyncLoop() {
   setInterval(() => {
     const s = useStore.getState();
     if (s.user && hasValidToken()) void syncNow();
-  }, 90_000);
+    // Renew the key on your next click a few minutes before it runs out, so saving never pauses.
+    if (s.user && tokenExpiresAt() - Date.now() < 6 * 60_000) armAutoReconnect();
+  }, 60_000);
+}
+
+/**
+ * Google only lets a site open its sign-in window right after you click or press a key.
+ * So when the Drive key is missing or about to run out, the next click anywhere quietly
+ * renews it (the Google window opens and closes by itself for an account that already agreed).
+ */
+let armed = false;
+function armAutoReconnect() {
+  if (armed || !isDriveConfigured() || !useStore.getState().user) return;
+  armed = true;
+  const go = (e: Event) => {
+    const target = e.target as HTMLElement | null;
+    // The Drive chip and Sign out handle this themselves.
+    if (target?.closest?.('.sync-chip, [data-no-auto-reconnect]')) return;
+    disarm();
+    const s = useStore.getState();
+    if (!s.user || (hasValidToken() && tokenExpiresAt() - Date.now() > 6 * 60_000)) return;
+    void reconnect().catch(() => {
+      /* closed or blocked: the Reconnect Drive button stays visible */
+    });
+  };
+  const disarm = () => {
+    armed = false;
+    window.removeEventListener('pointerdown', go, true);
+    window.removeEventListener('keydown', go, true);
+  };
+  window.addEventListener('pointerdown', go, true);
+  window.addEventListener('keydown', go, true);
 }
 
 export type SignInResult = { user: GoogleUser; guestHasData: boolean; resumeRoute: string };
@@ -157,6 +194,7 @@ export async function signInAndLoad(prompt: '' | 'consent' | 'select_account' = 
   const remembered = rememberedUser();
   const user = await signIn({ prompt, hint: remembered?.email });
   localStorage.setItem(LAST_USER, JSON.stringify(user));
+  rememberToken(user.sub);
   const st = useStore.getState();
   const key = 'g:' + user.sub;
   if (st.userKey !== key) {
@@ -170,11 +208,19 @@ export async function signInAndLoad(prompt: '' | 'consent' | 'select_account' = 
 }
 
 /** Reconnects the current account after the one-hour Google token runs out. */
-export async function reconnect(): Promise<void> {
-  const u = useStore.getState().user || rememberedUser();
-  await signIn({ prompt: '', hint: u?.email });
-  useStore.getState().setSync({ syncStatus: 'idle' });
-  await syncNow();
+let reconnecting: Promise<void> | null = null;
+export function reconnect(): Promise<void> {
+  if (reconnecting) return reconnecting;
+  reconnecting = (async () => {
+    const u = useStore.getState().user || rememberedUser();
+    const fresh = await signIn({ prompt: '', hint: u?.email });
+    rememberToken(fresh.sub);
+    useStore.getState().setSync({ syncStatus: 'idle' });
+    await syncNow();
+  })().finally(() => {
+    reconnecting = null;
+  });
+  return reconnecting;
 }
 
 export async function mergeGuestIntoAccount(): Promise<void> {
@@ -204,7 +250,16 @@ export async function bootstrap(): Promise<void> {
   if (remembered) {
     await st.init('g:' + remembered.sub);
     st.setUser(remembered);
+    preloadGoogle();
+    if (restoreToken(remembered.sub)) {
+      // Still signed in from before the reload: carry on saving without asking.
+      st.setSync({ syncStatus: 'idle' });
+      startSyncLoop();
+      void syncNow();
+      return;
+    }
     st.setSync({ syncStatus: 'paused' });
+    armAutoReconnect();
   } else {
     await st.init(GUEST_KEY);
   }

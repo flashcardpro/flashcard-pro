@@ -3,22 +3,85 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Flashcard Pro - photo flashcards that remember for you</title>
-    <meta name="description" content="Turn photos of notes and diagrams into flashcards. Hide parts of any image, study with spaced repetition, games and tests, and save everything to your own Google Drive." />
+    <title>Flashcard Pro: free flashcard maker from photos, with spaced repetition</title>
+    <meta name="description" content="Free online flashcard maker. Turn photos of notes and diagrams into flashcards, hide parts to quiz yourself, and study with spaced repetition. Saves to your own Google Drive." />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://flashcardpro.github.io/flashcard-pro/" />
     <meta name="theme-color" content="#F4F7FC" />
+    <meta name="application-name" content="Flashcard Pro" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="apple-touch-icon" href="./logo-192.png" />
-    <meta property="og:title" content="Flashcard Pro" />
-    <meta property="og:description" content="Photo flashcards with hide-and-reveal, spaced repetition and Google Drive saving." />
-    <meta property="og:image" content="./logo-512.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Flashcard Pro" />
+    <meta property="og:title" content="Flashcard Pro: turn photos into flashcards" />
+    <meta property="og:description" content="Free flashcard maker. Hide parts of any photo, study with spaced repetition, and keep everything in your own Google Drive." />
+    <meta property="og:url" content="https://flashcardpro.github.io/flashcard-pro/" />
+    <meta property="og:image" content="https://flashcardpro.github.io/flashcard-pro/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Flashcard Pro study screen with a solar system diagram, planet names hidden behind boxes." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Flashcard Pro: turn photos into flashcards" />
+    <meta name="twitter:description" content="Free flashcard maker with photo hide-and-reveal and spaced repetition. Works in your browser." />
+    <meta name="twitter:image" content="https://flashcardpro.github.io/flashcard-pro/og-image.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Flashcard Pro",
+        "url": "https://flashcardpro.github.io/flashcard-pro/",
+        "image": "https://flashcardpro.github.io/flashcard-pro/og-image.png",
+        "description": "Free flashcard maker. Turn photos of notes and diagrams into flashcards, hide parts to quiz yourself, and study with spaced repetition. Saves to your own Google Drive.",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "Any (works in a web browser on phones, tablets and computers)",
+        "inLanguage": ["en", "hi"],
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" },
+        "featureList": [
+          "Make flashcards from photos and hide parts of images (image occlusion)",
+          "Read text from photos and hide each line automatically",
+          "Spaced repetition with the FSRS scheduler",
+          "Text, fill-in-the-blank and math formula cards",
+          "Learn, Write, Test, Match and Gravity practice modes",
+          "Exam date planner, focus timer and daily reminders",
+          "Import from Anki and Quizlet, print or save as PDF",
+          "Saves to your own Google Drive, English and Hindi"
+        ]
+      }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,500;0,700;0,800;1,400&family=Noto+Sans+Devanagari:wght@400;600;700&display=swap" rel="stylesheet" />
     <script src="./config.js"></script>
+    <style>
+      .seo-landing { box-sizing: border-box; max-width: 720px; margin: 0 auto; padding: 12vh 24px 48px; font: 17px/1.6 'Atkinson Hyperlegible Next', system-ui, sans-serif; color: #18213d; }
+      .seo-landing h1 { font-size: 2.2rem; line-height: 1.15; margin: 18px 0 12px; }
+      .seo-landing p, .seo-landing li { color: #47536f; }
+      .seo-landing ul { padding-left: 1.2em; }
+      .seo-landing .seo-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.3rem; }
+      @media (prefers-color-scheme: dark) { body { background: #0e1424; } .seo-landing { color: #e8edf8; } .seo-landing p, .seo-landing li { color: #aab5cf; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <noscript>Flashcard Pro needs JavaScript turned on.</noscript>
+    <div id="root">
+      <!-- Shown while the app loads, and read by search engines. The app replaces it. -->
+      <main class="seo-landing">
+        <div class="seo-brand"><img src="./favicon.svg" width="36" height="36" alt="" /> Flashcard Pro</div>
+        <h1>Free flashcard maker: turn photos into flashcards</h1>
+        <p>Snap your notes, a diagram or a textbook page. Hide the parts you want to remember, and Flashcard Pro shows each card again right before you would forget it.</p>
+        <ul>
+          <li>Photo flashcards: drag boxes over labels and words, then tap to reveal them while you study.</li>
+          <li>Text, fill-in-the-blank and math formula cards.</li>
+          <li>Spaced repetition with the FSRS scheduler, plus Learn, Test, Match and Gravity games.</li>
+          <li>Exam planner, focus timer, daily reminders, Anki and Quizlet import, print to PDF.</li>
+          <li>Free, works in your browser, saves to your own Google Drive. English and Hindi.</li>
+        </ul>
+        <noscript><p>Flashcard Pro needs JavaScript turned on.</p></noscript>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
