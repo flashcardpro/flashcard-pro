@@ -24,6 +24,12 @@ export function withAnswers(items: StudyItem[]): StudyItem[] {
   return items.filter((i) => i.face.answerText.trim().length > 0);
 }
 
+/** False for a whole-photo card with several answers: picking it is fair, typing all of them is not. */
+export function canType(item: StudyItem): boolean {
+  if (item.note.type !== 'occlusion' || item.card.ord !== 'all') return true;
+  return (item.note.image?.masks || []).filter((m) => m.label.trim()).length <= 1;
+}
+
 export function choicesFor(item: StudyItem, pool: StudyItem[], n = 4): string[] {
   const correct = item.face.answerText;
   const others = shuffle(

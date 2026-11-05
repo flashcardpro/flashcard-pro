@@ -3,7 +3,7 @@ import { Check, X, ArrowRight, RotateCcw, Trophy, Timer, Heart, Zap, Volume2, Cl
 import { useStore, addXp, updateProfile, getLib } from '../lib/store';
 import { useT } from '../lib/i18n';
 import { navigate } from '../lib/router';
-import { studyItems, withAnswers, choicesFor, practiceOrder, type StudyItem } from '../lib/practice';
+import { studyItems, withAnswers, choicesFor, practiceOrder, canType, type StudyItem } from '../lib/practice';
 import { gradeAnswer, shuffle } from '../lib/util';
 import { speak } from '../lib/speech';
 import { RichHtml } from '../components/RichHtml';
@@ -142,7 +142,7 @@ export function LearnMode({ deckId }: { deckId: string | null }) {
     const ok = g !== 'wrong';
     setResult({ ok, close: g === 'close', picked: given, stage: s });
     const m = new Map(stage);
-    m.set(item.card.id, ok ? s + 1 : 0);
+    m.set(item.card.id, ok ? (s === 0 && !canType(item) ? 2 : s + 1) : 0);
     setStage(m);
     if (ok) addXp(3, 'practice');
   }
@@ -238,7 +238,7 @@ export function WriteMode({ deckId }: { deckId: string | null }) {
   const t = useT();
   const info = useDeckInfo(deckId);
   useResumeRoute(deckId, 'write');
-  const pool = useMemo(() => withAnswers(studyItems(getLib(), deckId)), [deckId]);
+  const pool = useMemo(() => withAnswers(studyItems(getLib(), deckId)).filter(canType), [deckId]);
   const [order, setOrder] = useState(() => practiceOrder(pool));
   const [i, setI] = useState(0);
   const [result, setResult] = useState<{ ok: boolean; close?: boolean } | null>(null);
@@ -351,7 +351,8 @@ export function TestMode({ deckId }: { deckId: string | null }) {
     const enabled = (Object.keys(types) as QType[]).filter((k) => types[k]);
     const picked = shuffle(pool).slice(0, n);
     const qs: Question[] = picked.map((item, idx) => {
-      const type = enabled[idx % enabled.length];
+      const asked = enabled[idx % enabled.length];
+      const type: QType = asked === 'written' && !canType(item) ? 'choice' : asked;
       if (type === 'choice') return { item, type, choices: choicesFor(item, pool) };
       if (type === 'truefalse') {
         const truth = Math.random() < 0.5;
@@ -641,7 +642,7 @@ export function GravityGame({ deckId }: { deckId: string | null }) {
   const t = useT();
   const info = useDeckInfo(deckId);
   useResumeRoute(deckId, 'gravity');
-  const pool = useMemo(() => withAnswers(studyItems(getLib(), deckId)), [deckId]);
+  const pool = useMemo(() => withAnswers(studyItems(getLib(), deckId)).filter(canType), [deckId]);
   const best = useStore((s) => s.lib.profile.gravityBest);
   const [state, setState] = useState<'ready' | 'play' | 'miss' | 'over'>('ready');
   const [rocks, setRocks] = useState<Rock[]>([]);
