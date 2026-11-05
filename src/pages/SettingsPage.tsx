@@ -246,9 +246,17 @@ export function SettingsPage() {
 
       <Section icon={<HardDrive size={18} />} title={t('About')}>
         <p className="muted small">Flashcard Pro 1.0. {t('Spaced repetition by FSRS, the same scheduler used in modern Anki.')}</p>
-        <Button variant="ghost" onClick={() => navigate('/help')}>
-          {t('Help and shortcuts')}
-        </Button>
+        <div className="row-gap">
+          <Button variant="ghost" onClick={() => navigate('/help')}>
+            {t('Help and shortcuts')}
+          </Button>
+          <a className="btn btn-ghost btn-md" href="./privacy.html" target="_blank" rel="noopener">
+            {t('Privacy policy')}
+          </a>
+          <a className="btn btn-ghost btn-md" href="./terms.html" target="_blank" rel="noopener">
+            {t('Terms of use')}
+          </a>
+        </div>
       </Section>
       {signIn.dialogs}
     </div>

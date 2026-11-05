@@ -9,6 +9,6 @@
  * Step-by-step setup: see SETUP.md in this repository, or the Help page in the app.
  */
 window.FCP_CONFIG = {
-  googleClientId: '',
-  googleApiKey: '',
+  googleClientId: '219365581483-8ef3so3cgk764paq3ga0grnp3p11rs35.apps.googleusercontent.com',
+  googleApiKey: 'AIzaSyCLJw4lGUkSmfela4LQA_oxslNnmzvQRG0',
 };

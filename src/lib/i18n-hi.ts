@@ -798,5 +798,7 @@ export const HI: Record<string, string> = {
   'Reading cards': 'कार्ड पढ़ रहा है',
   'Copying photos and audio': 'फ़ोटो और ऑडियो कॉपी हो रहे हैं',
   'My first deck': 'मेरा पहला डेक',
+  'Privacy policy': 'गोपनीयता नीति',
+  'Terms of use': 'उपयोग की शर्तें',
   'Untitled deck': 'बिना नाम का डेक',
 };
