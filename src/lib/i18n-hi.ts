@@ -936,4 +936,6 @@ export const HI: Record<string, string> = {
   'On photo cards, tap a box to peek at one answer.': 'फ़ोटो कार्ड पर, एक उत्तर देखने के लिए किसी बॉक्स पर टैप करें।',
   'Click Show answer or press Space to reveal every answer at once.': 'सभी उत्तर एक साथ देखने के लिए "उत्तर दिखाएँ" पर क्लिक करें या Space दबाएँ।',
   'Click any card in a deck to study just that card. Right-click it to edit.': 'सिर्फ़ उसी कार्ड को पढ़ने के लिए डेक में किसी कार्ड पर क्लिक करें। बदलने के लिए उस पर राइट-क्लिक करें।',
+  'Hide side panel': 'साइड पैनल छिपाएँ',
+  'Show side panel': 'साइड पैनल दिखाएँ',
 };

@@ -763,3 +763,53 @@ kbd,
 .menu-label {
   display: block;
 }
+
+/* hideable side panel (desktop) */
+.app {
+  transition: grid-template-columns 0.2s ease;
+}
+.app-side {
+  overflow: hidden;
+}
+.app-side > .sidebar {
+  width: var(--side-w);
+}
+.app.side-hidden:not(.is-full) {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+.app.side-hidden .app-side {
+  visibility: hidden;
+  border-right-color: transparent;
+  transition: visibility 0s 0.2s, border-color 0.2s;
+}
+.side-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+.side-head .side-logo {
+  flex: 1;
+  min-width: 0;
+}
+.side-toggle {
+  color: var(--ink-3);
+}
+.side-toggle:hover {
+  color: var(--ink);
+}
+.side-reopen {
+  align-items: center;
+  gap: 6px;
+  margin-right: 6px;
+}
+@media (min-width: 901px) {
+  .side-reopen {
+    display: inline-flex;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app {
+    transition: none;
+  }
+}

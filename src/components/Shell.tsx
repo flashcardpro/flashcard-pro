@@ -38,6 +38,8 @@ import {
   Palette,
   CircleHelp,
   MonitorPlay,
+  PanelLeftClose,
+  PanelLeftOpen,
   Check,
   AlertTriangle,
 } from 'lucide-react';
@@ -404,7 +406,7 @@ function SidebarDeck({ deck, depth, due, active }: { deck: Deck; depth: number; 
   );
 }
 
-function Sidebar({ onSignIn, onNavigate }: { onSignIn: () => void; onNavigate?: () => void }) {
+function Sidebar({ onSignIn, onNavigate, onHide }: { onSignIn: () => void; onNavigate?: () => void; onHide?: () => void }) {
   const t = useT();
   const lib = useStore((s) => s.lib);
   const route = useRoute();
@@ -427,9 +429,18 @@ function Sidebar({ onSignIn, onNavigate }: { onSignIn: () => void; onNavigate?: 
   ];
   return (
     <nav className="sidebar" aria-label={t('Main')} onClick={(e) => (e.target as HTMLElement).closest('a') && onNavigate?.()}>
-      <a href="#/" className="side-logo" aria-label="Flashcard Pro">
-        <Logo />
-      </a>
+      <div className="side-head">
+        <a href="#/" className="side-logo" aria-label="Flashcard Pro">
+          <Logo />
+        </a>
+        {onHide && (
+          <Tooltip text={t('Hide side panel') + ' (Ctrl+\\)'} side="right">
+            <button className="icon-btn side-toggle" aria-label={t('Hide side panel')} onClick={onHide}>
+              <PanelLeftClose size={18} />
+            </button>
+          </Tooltip>
+        )}
+      </div>
       <ul className="side-nav">
         {nav.map((n) => (
           <li key={n.to}>
@@ -568,10 +579,22 @@ function PrefsMenu() {
   );
 }
 
-function TopBar({ onMenu, onSearch, picker, onSignIn }: { onMenu: () => void; onSearch: () => void; picker: ReturnType<typeof usePhotoPicker>; onSignIn: () => void }) {
+function TopBar({ onMenu, onSearch, picker, onSignIn, sideHidden, onShowSide }: { onMenu: () => void; onSearch: () => void; picker: ReturnType<typeof usePhotoPicker>; onSignIn: () => void; sideHidden: boolean; onShowSide: () => void }) {
   const t = useT();
   return (
     <header className="topbar">
+      {sideHidden && (
+        <span className="only-desktop side-reopen">
+          <Tooltip text={t('Show side panel') + ' (Ctrl+\\)'}>
+            <button className="icon-btn side-toggle" aria-label={t('Show side panel')} onClick={onShowSide}>
+              <PanelLeftOpen size={18} />
+            </button>
+          </Tooltip>
+          <a href="#/" className="topbar-logo" aria-label="Flashcard Pro">
+            <Logo compact />
+          </a>
+        </span>
+      )}
       <IconButton label={t('Open menu')} className="only-mobile" onClick={onMenu}>
         <MenuIcon size={20} />
       </IconButton>
@@ -687,8 +710,40 @@ function DropZone() {
 export function Shell({ children, onSearch, fullBleed = false, noBottomNav = false }: { children: ReactNode; onSearch: () => void; fullBleed?: boolean; noBottomNav?: boolean }) {
   const t = useT();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sideHidden, setSideHidden] = useState(() => {
+    try {
+      return localStorage.getItem('fcp-side-hidden') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleSide = (hide: boolean) => {
+    setSideHidden(hide);
+    try {
+      localStorage.setItem('fcp-side-hidden', hide ? '1' : '0');
+    } catch {
+      /* remembered for this visit only */
+    }
+  };
   const picker = usePhotoPicker();
   const signIn = useSignIn();
+  useEffect(() => {
+    const onToggleKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === '\\') {
+        e.preventDefault();
+        setSideHidden((h) => {
+          try {
+            localStorage.setItem('fcp-side-hidden', h ? '0' : '1');
+          } catch {
+            /* ignore */
+          }
+          return !h;
+        });
+      }
+    };
+    window.addEventListener('keydown', onToggleKey);
+    return () => window.removeEventListener('keydown', onToggleKey);
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -703,17 +758,17 @@ export function Shell({ children, onSearch, fullBleed = false, noBottomNav = fal
     return () => window.removeEventListener('keydown', onKey);
   }, [picker]);
   return (
-    <div className={'app' + (fullBleed ? ' is-full' : '') + (noBottomNav ? ' no-bottom' : '')}>
+    <div className={'app' + (fullBleed ? ' is-full' : '') + (noBottomNav ? ' no-bottom' : '') + (sideHidden ? ' side-hidden' : '')}>
       {!fullBleed && (
-        <aside className="app-side only-desktop">
-          <Sidebar onSignIn={signIn.run} />
+        <aside className="app-side only-desktop" aria-hidden={sideHidden || undefined}>
+          <Sidebar onSignIn={signIn.run} onHide={() => toggleSide(true)} />
         </aside>
       )}
       <Sheet open={menuOpen} onOpenChange={setMenuOpen} title={t('Menu')}>
         <Sidebar onSignIn={signIn.run} onNavigate={() => setMenuOpen(false)} />
       </Sheet>
       <div className="app-main">
-        {!fullBleed && <TopBar onMenu={() => setMenuOpen(true)} onSearch={onSearch} picker={picker} onSignIn={signIn.run} />}
+        {!fullBleed && <TopBar onMenu={() => setMenuOpen(true)} onSearch={onSearch} picker={picker} onSignIn={signIn.run} sideHidden={sideHidden} onShowSide={() => toggleSide(false)} />}
         <main className="app-content" id="main">
           {children}
         </main>
