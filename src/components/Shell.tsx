@@ -37,6 +37,7 @@ import {
   Download,
   Palette,
   CircleHelp,
+  MonitorPlay,
   Check,
   AlertTriangle,
 } from 'lucide-react';
@@ -422,6 +423,7 @@ function Sidebar({ onSignIn, onNavigate }: { onSignIn: () => void; onNavigate?: 
     { to: '/achievements', icon: <Trophy size={18} />, label: t('Badges') },
     { to: '/import', icon: <Import size={18} />, label: t('Import') },
     { to: '/settings', icon: <Settings size={18} />, label: t('Settings') },
+    { to: '/tutorial', icon: <MonitorPlay size={18} />, label: t('Tutorial') },
   ];
   return (
     <nav className="sidebar" aria-label={t('Main')} onClick={(e) => (e.target as HTMLElement).closest('a') && onNavigate?.()}>
@@ -431,7 +433,7 @@ function Sidebar({ onSignIn, onNavigate }: { onSignIn: () => void; onNavigate?: 
       <ul className="side-nav">
         {nav.map((n) => (
           <li key={n.to}>
-            <a href={'#' + n.to} className={'side-link' + (route.path === n.to ? ' is-active' : '')}>
+            <a href={'#' + n.to} className={'side-link' + (route.path === n.to || (n.to !== '/' && route.path.startsWith(n.to + '/')) ? ' is-active' : '')}>
               {n.icon}
               <span>{n.label}</span>
             </a>
@@ -555,6 +557,9 @@ function PrefsMenu() {
           </MenuRadio>
         </MenuRadioGroup>
         <MenuSep />
+        <MenuItem icon={<MonitorPlay size={15} />} onSelect={() => navigate('/tutorial')}>
+          {t('Tutorial videos')}
+        </MenuItem>
         <MenuItem icon={<CircleHelp size={15} />} onSelect={() => navigate('/help')} shortcut="?">
           {t('Help and shortcuts')}
         </MenuItem>

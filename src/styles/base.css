@@ -716,3 +716,50 @@ kbd,
     transition-duration: 0.001ms !important;
   }
 }
+
+/* focus timer popover */
+.timer-pop {
+  width: 270px;
+  display: grid;
+  gap: 14px;
+}
+.timer-face {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 4px 0 0;
+}
+.timer-phase {
+  font-size: var(--t-sm);
+  font-weight: 800;
+  color: var(--ballpoint);
+}
+.timer-big {
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.timer-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+}
+.timer-settings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule-soft);
+}
+.timer-settings label {
+  display: grid;
+  gap: 4px;
+  font-size: var(--t-xs);
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.menu-label {
+  display: block;
+}

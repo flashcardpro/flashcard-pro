@@ -795,3 +795,10 @@
   color: #18213d;
   font-weight: 800;
 }
+/* photo questions need the full tile width, or the photo shrinks to nothing */
+.match-tile .prompt {
+  width: 100%;
+}
+.answer-math {
+  display: inline;
+}

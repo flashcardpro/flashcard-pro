@@ -7,10 +7,18 @@ import { studyItems, withAnswers, choicesFor, practiceOrder, type StudyItem } fr
 import { gradeAnswer, shuffle } from '../lib/util';
 import { speak } from '../lib/speech';
 import { RichHtml } from '../components/RichHtml';
+import { escapeHtml } from '../lib/cards';
 import { CardImage } from '../components/CardImage';
 import { Button, Empty, Kbd, Progress, Select, Switch, IconButton } from '../components/ui';
 import { StudyTop } from './StudyPage';
 import { saveResume } from '../lib/store';
+
+
+/** Plain answer text, with any $formula$ drawn as math instead of raw symbols. */
+function AnswerText({ text }: { text: string }) {
+  if (!text.includes('$')) return <>{text}</>;
+  return <RichHtml as="span" html={escapeHtml(text)} className="answer-math" />;
+}
 
 function Prompt({ item, compact = false }: { item: StudyItem; compact?: boolean }) {
   const { note, face } = item;
@@ -58,7 +66,7 @@ function Feedback({ ok, close, answer, onNext, onOverride }: { ok: boolean; clos
         <b>{ok ? (close ? t('Almost. Check the spelling.') : t('Correct')) : t('Not quite')}</b>
         {(!ok || close) && (
           <p>
-            {t('Answer')}: <span className="feedback-answer">{answer}</span>
+            {t('Answer')}: <span className="feedback-answer"><AnswerText text={answer} /></span>
           </p>
         )}
       </div>
@@ -210,7 +218,7 @@ export function LearnMode({ deckId }: { deckId: string | null }) {
               return (
                 <button key={c} className={'choice ' + state} disabled={!!result} onClick={() => answer(c)}>
                   <Kbd>{k + 1}</Kbd>
-                  <span>{c}</span>
+                  <span><AnswerText text={c} /></span>
                 </button>
               );
             })}
@@ -261,7 +269,7 @@ export function WriteMode({ deckId }: { deckId: string | null }) {
               {missed.map((m) => (
                 <li key={m.card.id}>
                   <span className="missed-q">{m.face.promptText || t('Photo card')}</span>
-                  <span className="missed-a">{m.face.answerText}</span>
+                  <span className="missed-a"><AnswerText text={m.face.answerText} /></span>
                 </li>
               ))}
             </ul>
@@ -459,7 +467,7 @@ export function TestMode({ deckId }: { deckId: string | null }) {
                         className={'choice' + (a === c ? ' is-picked' : '') + (submitted && c === q.item.face.answerText ? ' is-right' : '') + (submitted && a === c && c !== q.item.face.answerText ? ' is-wrong' : '')}
                         onClick={() => setAnswers({ ...answers, [i]: c })}
                       >
-                        <span>{c}</span>
+                        <span><AnswerText text={c} /></span>
                       </button>
                     ))}
                   </div>
@@ -469,7 +477,7 @@ export function TestMode({ deckId }: { deckId: string | null }) {
                 )}
                 {submitted && !right && (
                   <p className="test-correct">
-                    {t('Correct answer')}: <b>{q.item.face.answerText}</b>
+                    {t('Correct answer')}: <b><AnswerText text={q.item.face.answerText} /></b>
                   </p>
                 )}
               </li>
@@ -610,7 +618,7 @@ export function MatchGame({ deckId }: { deckId: string | null }) {
               onClick={() => pick(tile)}
               disabled={gone.has(tile.key)}
             >
-              {tile.side === 'q' ? <Prompt item={tile.item} compact /> : <span className="match-text">{tile.item.face.answerText}</span>}
+              {tile.side === 'q' ? <Prompt item={tile.item} compact /> : <span className="match-text"><AnswerText text={tile.item.face.answerText} /></span>}
             </button>
           ))}
         </div>
@@ -786,7 +794,7 @@ export function GravityGame({ deckId }: { deckId: string | null }) {
             <h2>{t('Missed one')}</h2>
             <Prompt item={missed} compact />
             <p>
-              {t('Answer')}: <b className="feedback-answer">{missed.face.answerText}</b>
+              {t('Answer')}: <b className="feedback-answer"><AnswerText text={missed.face.answerText} /></b>
             </p>
             <p className="muted">{t('Type the answer to keep going.')}</p>
           </div>

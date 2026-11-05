@@ -1,5 +1,7 @@
 import { useT } from '../lib/i18n';
-import { Kbd } from '../components/ui';
+import { MonitorPlay } from 'lucide-react';
+import { Button, Kbd } from '../components/ui';
+import { navigate } from '../lib/router';
 import { isDriveConfigured, isShareConfigured } from '../lib/drive';
 
 export function HelpPage() {
@@ -24,6 +26,10 @@ export function HelpPage() {
     <div className="page help-page">
       <header className="page-head">
         <h1 className="page-title">{t('Help and shortcuts')}</h1>
+        <span className="toolbar-flex" />
+        <Button variant="primary" icon={<MonitorPlay size={16} />} onClick={() => navigate('/tutorial')}>
+          {t('Watch the tutorial')}
+        </Button>
       </header>
       <section className="panel">
         <h2 className="section-title">{t('How Flashcard Pro works')}</h2>

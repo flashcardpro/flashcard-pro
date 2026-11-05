@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Play, Flame, ImagePlus, CalendarClock, ArrowRight, Camera, FileText, Import, History, Target, Plus } from 'lucide-react';
+import { Play, Flame, ImagePlus, CalendarClock, ArrowRight, Camera, FileText, Import, History, Target, Plus, MonitorPlay } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { useT } from '../lib/i18n';
 import { buildQueue, deckCounts, forecast, studyDays } from '../lib/srs';
@@ -112,6 +112,14 @@ export function HomePage() {
               </Button>
             </div>
             <p className="muted small">{t('Tip: you can also drag photos onto this page or paste a screenshot with Ctrl+V.')}</p>
+            <a className="welcome-tutorial" href="#/tutorial">
+              <MonitorPlay size={18} />
+              <span>
+                <b>{t('New here? Watch the tutorial')}</b>
+                <span className="muted small">{t('Six short videos, about a minute each')}</span>
+              </span>
+              <ArrowRight size={16} />
+            </a>
           </div>
           <div className="welcome-art" aria-hidden="true">
             <div className="demo-card demo-back" />

@@ -125,7 +125,9 @@ export function MenuRadio({ value, children, swatch }: { value: string; children
           <Check size={15} />
         </DM.ItemIndicator>
       </span>
-      <span className="menu-text">{children}</span>
+      <span className="menu-text">
+        <span className="menu-label">{children}</span>
+      </span>
     </DM.RadioItem>
   );
 }

@@ -34,6 +34,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ de
 const SharedDeckPage = lazy(() => import('./pages/SharedDeckPage').then((m) => ({ default: m.SharedDeckPage })));
 const PrintPage = lazy(() => import('./pages/PrintPage').then((m) => ({ default: m.PrintPage })));
 const HelpPage = lazy(() => import('./pages/HelpPage').then((m) => ({ default: m.HelpPage })));
+const TutorialPage = lazy(() => import('./pages/TutorialPage').then((m) => ({ default: m.TutorialPage })));
 
 function useThemeAndLang() {
   const theme = useStore((s) => s.lib.settings.theme);
@@ -86,7 +87,7 @@ function Loading() {
   );
 }
 
-const NO_RESUME = ['/add-photos', '/shared', '/print', '/help', '/note/new'];
+const NO_RESUME = ['/add-photos', '/shared', '/print', '/help', '/tutorial', '/note/new'];
 
 export default function App() {
   const ready = useStore((s) => s.ready);
@@ -162,6 +163,8 @@ export default function App() {
   else if (p === '/import') page = <ImportPage />;
   else if (p === '/settings') page = <SettingsPage />;
   else if (p === '/help') page = <HelpPage />;
+  else if (p === '/tutorial') page = <TutorialPage />;
+  else if ((m = match('/tutorial/:id', p))) page = <TutorialPage lessonId={m.id} />;
   else if ((m = match('/shared/:id', p))) page = <SharedDeckPage fileId={m.id} />;
   else if ((m = match('/print/:id', p))) {
     full = true;

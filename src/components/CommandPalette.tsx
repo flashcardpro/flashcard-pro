@@ -1,7 +1,7 @@
 import { Command } from 'cmdk';
 import * as Dlg from '@radix-ui/react-dialog';
 import { useMemo, useState } from 'react';
-import { BarChart3, Brackets, FileText, FolderOpen, Home, ImagePlus, Import, Languages, Library, Moon, Play, Settings, Sun, Timer, Trophy, CircleHelp, Gamepad2 } from 'lucide-react';
+import { BarChart3, Brackets, FileText, FolderOpen, Home, ImagePlus, Import, Languages, Library, Moon, Play, Settings, Sun, Timer, Trophy, CircleHelp, Gamepad2, MonitorPlay } from 'lucide-react';
 import { useStore, updateSettings } from '../lib/store';
 import { useT } from '../lib/i18n';
 import { navigate } from '../lib/router';
@@ -114,6 +114,7 @@ export function CommandPalette({ open, onOpenChange, onAddPhotos }: { open: bool
                   ['/stats', <BarChart3 size={16} key="i" />, t('Progress')],
                   ['/achievements', <Trophy size={16} key="i" />, t('Badges')],
                   ['/settings', <Settings size={16} key="i" />, t('Settings')],
+                  ['/tutorial', <MonitorPlay size={16} key="i" />, t('Tutorial videos')],
                   ['/help', <CircleHelp size={16} key="i" />, t('Help and shortcuts')],
                 ].map(([to, icon, label]) => (
                   <Command.Item key={to as string} className="cmdk-item" value={'go ' + label} onSelect={() => go(() => navigate(to as string))}>
