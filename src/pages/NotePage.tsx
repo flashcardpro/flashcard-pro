@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Save, Plus, Trash2, MoreHorizontal, RotateCcw, Copy } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, MoreHorizontal, Copy } from 'lucide-react';
 import { toast } from 'sonner';
-import { useStore, blankNote, saveNote, deleteNotes, ensureDefaultDeck, resetCards, getLib } from '../lib/store';
+import { useStore, blankNote, saveNote, deleteNotes, ensureDefaultDeck, getLib } from '../lib/store';
+import { useStudyAgain } from '../components/StudyAgain';
 import { useT } from '../lib/i18n';
 import { navigate } from '../lib/router';
 import { NoteEditor, noteProblem } from '../components/NoteEditor';
-import { Button, Dialog, Empty, Menu, MenuContent, MenuItem, MenuSep, MenuTrigger, IconButton } from '../components/ui';
+import { Button, Dialog, Empty, Menu, MenuContent, MenuItem, MenuSep, MenuSub, MenuTrigger, IconButton } from '../components/ui';
 import type { Note, NoteType } from '../lib/types';
 import { uid } from '../lib/util';
 
 export function NotePage({ id, query }: { id: string | null; query: URLSearchParams }) {
   const t = useT();
+  const again = useStudyAgain();
   const existing = useStore((s) => (id ? s.lib.notes[id] : undefined));
   const [note, setNote] = useState<Note | null>(() => {
     if (id) return existing ? { ...existing } : null;
@@ -70,6 +72,7 @@ export function NotePage({ id, query }: { id: string | null; query: URLSearchPar
 
   return (
     <div className="page note-page">
+      {again.dialog}
       <header className="page-head">
         <IconButton label={t('Back')} onClick={back}>
           <ArrowLeft size={20} />
@@ -95,15 +98,14 @@ export function NotePage({ id, query }: { id: string | null; query: URLSearchPar
               >
                 {t('Make a copy')}
               </MenuItem>
-              <MenuItem
-                icon={<RotateCcw size={15} />}
-                onSelect={() => {
-                  resetCards(Object.values(getLib().cards).filter((c) => c.noteId === note.id).map((c) => c.id));
-                  toast(t('Progress reset. These cards are new again.'));
-                }}
-              >
-                {t('Reset progress')}
-              </MenuItem>
+              {again.items(
+                Object.values(getLib().cards)
+                  .filter((c) => c.noteId === note.id)
+                  .map((c) => c.id),
+                MenuItem,
+                MenuSub,
+                MenuSep,
+              )}
               <MenuSep />
               <MenuItem icon={<Trash2 size={15} />} danger onSelect={() => setConfirmDel(true)}>
                 {t('Delete card')}

@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Search, SlidersHorizontal, LayoutGrid, List as ListIcon, ArrowUpDown, Flag, FolderInput, Pause, Play, RotateCcw, Trash2, Pencil, X, CheckSquare, Square, Tag } from 'lucide-react';
+import { Search, SlidersHorizontal, LayoutGrid, List as ListIcon, ArrowUpDown, Flag, FolderInput, Pause, Play, Trash2, Pencil, X, CheckSquare, Square, Tag } from 'lucide-react';
 import type { Card, CardStatus, FlagColor, Note, NoteType } from '../lib/types';
 import { FLAG_COLORS } from '../lib/types';
-import { useStore, deleteNotes, moveNotes, setNotesFlag, updateCards, resetCards } from '../lib/store';
+import { useStore, deleteNotes, moveNotes, setNotesFlag, updateCards } from '../lib/store';
+import { useStudyAgain } from './StudyAgain';
 import { useT } from '../lib/i18n';
 import { statusOf, deckDescendants } from '../lib/srs';
 import { noteTitle } from '../lib/cards';
@@ -38,6 +39,7 @@ export function CardBrowser({ deckId, includeSub = true }: { deckId?: string; in
   const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('fcp-view') as 'grid' | 'list') || 'grid');
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [confirmDel, setConfirmDel] = useState<string[] | null>(null);
+  const again = useStudyAgain();
 
   const cardsByNote = useMemo(() => {
     const m = new Map<string, Card[]>();
@@ -119,9 +121,7 @@ export function CardBrowser({ deckId, includeSub = true }: { deckId?: string; in
         <I icon={allPaused ? <Play size={15} /> : <Pause size={15} />} onSelect={() => updateCards(cardIdsOf(ids), () => ({ suspended: !allPaused }))}>
           {allPaused ? t('Resume studying') : t('Pause (skip in reviews)')}
         </I>
-        <I icon={<RotateCcw size={15} />} onSelect={() => (resetCards(cardIdsOf(ids)), toast(t('Progress reset. These cards are new again.')))}>
-          {t('Reset progress')}
-        </I>
+        {again.items(cardIdsOf(ids), I, Sub, Sep)}
         <Sep />
         <I icon={<Trash2 size={15} />} danger onSelect={() => setConfirmDel(ids)}>
           {t('Delete')}
@@ -333,6 +333,7 @@ export function CardBrowser({ deckId, includeSub = true }: { deckId?: string; in
         </ul>
       )}
       {notes.length > 600 && <p className="muted center">{t('Showing the first 600. Search or filter to find the rest.')}</p>}
+      {again.dialog}
       <Dialog
         open={!!confirmDel}
         onOpenChange={(v) => !v && setConfirmDel(null)}

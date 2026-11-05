@@ -846,3 +846,20 @@
     gap: 8px;
   }
 }
+.relearn-offer {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  max-width: 520px;
+  margin: 4px auto 6px;
+  padding: 14px 18px;
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--s-learning);
+  border-radius: var(--r-card);
+  background: var(--card);
+  text-align: center;
+}
+.relearn-offer p {
+  margin: 0;
+  color: var(--ink-2);
+}

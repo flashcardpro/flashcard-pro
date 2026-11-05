@@ -76,6 +76,20 @@ export function reviewOnDate(s: SrsState, dueAt: number, ts = Date.now(), retent
   return placeAt(review(s, 3, ts, retention), s, dueAt, ts, true);
 }
 
+/**
+ * Moves a card to a chosen day without counting it as a review (Study again, pick a day).
+ * A card never studied gets a first memory as if answered Good.
+ */
+export function moveDue(s: SrsState, dueAt: number, ts = Date.now(), retention = 0.9): SrsState {
+  if (s.state === 0) return reviewOnDate(s, dueAt, ts, retention);
+  return { ...s, state: 2, learning_steps: 0, due: dueAt, scheduled_days: Math.max(1, Math.round((dueAt - ts) / 86_400_000)) };
+}
+
+/** Puts a card back into today's learning, as if it was forgotten, ready to study right now. */
+export function relearn(s: SrsState, ts = Date.now(), retention = 0.9): SrsState {
+  return { ...review(s, 1, ts, retention), due: ts };
+}
+
 /** When a button set to a fixed time sends the card, or null if the button is automatic. */
 export function fixedDueAt(bt: ButtonTime | undefined, ts = Date.now()): number | null {
   if (!bt || bt.mode !== 'fixed' || !(bt.amount > 0)) return null;

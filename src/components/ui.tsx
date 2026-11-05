@@ -164,11 +164,14 @@ export function CtxContent({ children }: { children: ReactNode }) {
     </CM.Portal>
   );
 }
-export function CtxItem({ icon, children, shortcut, onSelect, danger, disabled }: ItemProps) {
+export function CtxItem({ icon, children, shortcut, onSelect, danger, disabled, hint }: ItemProps) {
   return (
     <CM.Item className={'menu-item' + (danger ? ' is-danger' : '')} onSelect={onSelect} disabled={disabled}>
       <span className="menu-icon">{icon}</span>
-      <span className="menu-text">{children}</span>
+      <span className="menu-text">
+        {children}
+        {hint && <span className="menu-hint">{hint}</span>}
+      </span>
       {shortcut && <kbd className="menu-kbd">{shortcut}</kbd>}
     </CM.Item>
   );

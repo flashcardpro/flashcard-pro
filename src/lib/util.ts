@@ -37,6 +37,11 @@ export function addDaysKey(key: string, n: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/** A short weekday and date, like "Sat, 7 Nov". */
+export function formatDay(ts: number, lang: string = 'en'): string {
+  return new Date(ts).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
 export function formatInterval(ms: number, lang: 'en' | 'hi' = 'en'): string {
   const m = ms / 60_000;
   const unit = (en: string, hi: string) => (lang === 'hi' ? hi : en);

@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Volume2, VolumeX, MoreHorizontal, Pencil, Undo2, EyeOff, Pause, Flag, RotateCcw, Trophy, Grid3x3, ArrowLeft, Clock, Check, Keyboard, CalendarDays, CalendarClock, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
-import { useStore, rateCard, undoRating, updateCards, setNotesFlag, resetCards, getLib, saveResume, updateSettings } from '../lib/store';
+import { useStore, rateCard, undoRating, updateCards, setNotesFlag, relearnCards, getLib, saveResume, updateSettings } from '../lib/store';
+import { useStudyAgain } from '../components/StudyAgain';
+import { DayPickerDialog } from '../components/DayPicker';
 import { useT, useLang } from '../lib/i18n';
-import { buildQueue, previewWith, statusOf, confidenceToRating, dueInDays, dueOnDate } from '../lib/srs';
+import { buildQueue, previewWith, statusOf, confidenceToRating, dueInDays } from '../lib/srs';
 import { faceFor } from '../lib/cards';
 import { navigate } from '../lib/router';
-import { endOfStudyDay, startOfStudyDay, dayKey, formatInterval, shuffle } from '../lib/util';
+import { endOfStudyDay, dayKey, formatDay, formatInterval, shuffle } from '../lib/util';
 import { speak, stopSpeaking, ttsSupported } from '../lib/speech';
 import { REVIEW_XP } from '../lib/gamify';
 import { CardFaceView } from '../components/CardFace';
-import { Button, Dialog, IconButton, Menu, MenuContent, MenuItem, MenuLabel, MenuSep, MenuSub, MenuTrigger, Progress, Kbd, Tooltip } from '../components/ui';
+import { Button, IconButton, Menu, MenuContent, MenuItem, MenuLabel, MenuSep, MenuSub, MenuTrigger, Progress, Kbd, Tooltip } from '../components/ui';
 import { FLAG_HEX } from '../components/NoteEditor';
 import { FLAG_COLORS, type Card, type Rating } from '../lib/types';
 
@@ -77,7 +79,8 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
   const [showKeys, setShowKeys] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
   const [pickDate, setPickDate] = useState(false);
-  const [pickedDay, setPickedDay] = useState('');
+  const missed = useRef(new Set<string>());
+  const [relearned, setRelearned] = useState(false);
   const shownAt = useRef(Date.now());
   const sessionStart = useRef(Date.now());
 
@@ -85,6 +88,16 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
   const card = cardId ? lib.cards[cardId] : undefined;
   const note = card ? lib.notes[card.noteId] : undefined;
   const finished = !card || !note;
+
+  // Study again from the card menu: keep this session in step with the new schedule.
+  const again = useStudyAgain((kind, ids) => {
+    if (!card || ids[0] !== card.id || kind === 'new') return;
+    const q = queue.slice();
+    q.splice(pos, 1);
+    if (kind === 'relearn') q.splice(Math.min(q.length, pos + 3), 0, card.id);
+    else setTotal(Math.max(done, total - 1));
+    setQueue(q);
+  });
 
   // Remember where the person is, so signing in elsewhere resumes here.
   useEffect(() => {
@@ -117,7 +130,10 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
     if (mode === 'cram') {
       // Flip-through: missed cards come back later in the same run, schedule untouched.
       const q = queue.slice();
-      if (r === 1) q.splice(Math.min(q.length, pos + 4), 0, card.id);
+      if (r === 1) {
+        q.splice(Math.min(q.length, pos + 4), 0, card.id);
+        missed.current.add(card.id);
+      }
       setQueue(q);
       setPos(pos + 1);
       setDone(done + 1);
@@ -249,6 +265,23 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
             <p className="muted">{t('You have studied everything that is due. New cards unlock again tomorrow.')}</p>
           )}
           <p className="muted">{tomorrow ? t('{n} cards are due tomorrow.', { n: tomorrow }) : ''}</p>
+          {mode === 'cram' && missed.current.size > 0 && (
+            <div className="relearn-offer">
+              <p>{t('You marked {n} cards as Still learning. Flip-through does not change your schedule, so add them to your review today if you want to learn them properly.', { n: missed.current.size })}</p>
+              <Button
+                variant="primary"
+                icon={<RotateCcw size={16} />}
+                disabled={relearned}
+                onClick={() => {
+                  relearnCards([...missed.current]);
+                  setRelearned(true);
+                  toast.success(t('{n} cards added back to learning for today.', { n: missed.current.size }));
+                }}
+              >
+                {relearned ? t('Added to today') : t('Learn these {n} again today', { n: missed.current.size })}
+              </Button>
+            </div>
+          )}
           <div className="row-gap center">
             {deckId && (
               <Button icon={<Grid3x3 size={16} />} onClick={() => navigate(`/deck/${deckId}/study/match`)}>
@@ -291,55 +324,14 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
         <MenuSep />
         <MenuItem
           icon={<CalendarDays size={15} />}
-          onSelect={() => {
-            setPickedDay(dayKey(dueInDays(7)));
-            setPickDate(true);
-          }}
+          onSelect={() => setPickDate(true)}
         >
           {t('Choose a date...')}
         </MenuItem>
       </MenuContent>
     </Menu>
   );
-  const pickedDue = pickedDay ? dueOnDate(pickedDay) : 0;
-  const pickedDays = pickedDue ? Math.round((pickedDue - startOfStudyDay()) / 86_400_000) : 0;
-  const dateDialog = (
-    <Dialog
-      open={pickDate}
-      onOpenChange={setPickDate}
-      title={t('Choose a date')}
-      description={t('The card comes back on the morning of this day.')}
-      size="sm"
-      footer={
-        <>
-          <Button variant="ghost" onClick={() => setPickDate(false)}>
-            {t('Cancel')}
-          </Button>
-          <Button
-            variant="primary"
-            icon={<CalendarClock size={16} />}
-            disabled={pickedDays < 1}
-            onClick={() => {
-              setPickDate(false);
-              rate(3, pickedDue);
-            }}
-          >
-            {t('Schedule card')}
-          </Button>
-        </>
-      }
-    >
-      <input
-        type="date"
-        className="input"
-        min={dayKey(dueInDays(1))}
-        value={pickedDay}
-        onChange={(e) => setPickedDay(e.target.value)}
-        aria-label={t('Choose a date')}
-      />
-      <p className="muted small custom-due-note">{pickedDays >= 1 ? t('{date}, in {n} days', { date: formatDay(pickedDue, lang), n: pickedDays }) : t('Pick a day after today.')}</p>
-    </Dialog>
-  );
+  const dateDialog = <DayPickerDialog open={pickDate} onOpenChange={setPickDate} onConfirm={(due) => rate(3, due)} />;
   const ratingButtons =
     mode === 'cram' ? (
       <div className="rate-row two">
@@ -425,15 +417,7 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
             <MenuItem icon={<Pause size={15} />} onSelect={() => skipCard('pause')}>
               {t('Pause this card')}
             </MenuItem>
-            <MenuItem
-              icon={<RotateCcw size={15} />}
-              onSelect={() => {
-                resetCards([card.id]);
-                toast(t('Progress reset. These cards are new again.'));
-              }}
-            >
-              {t('Reset progress')}
-            </MenuItem>
+            {again.items([card.id], MenuItem, MenuSub, MenuSep)}
             <MenuSep />
             <MenuItem icon={<SlidersHorizontal size={15} />} onSelect={() => navigate('/settings?section=buttons')}>
               {t('Change button times')}
@@ -480,14 +464,11 @@ export function StudyPage({ deckId, mode }: { deckId: string | null; mode: 'revi
         )}
       </footer>
       {dateDialog}
+      {again.dialog}
     </div>
   );
 }
 
-/** A short weekday and date, like "Sat, 7 Nov". */
-function formatDay(ts: number, lang: string): string {
-  return new Date(ts).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
-}
 
 function deckDescendantsSet(lib: ReturnType<typeof getLib>, id: string): Set<string> {
   const out = new Set([id]);

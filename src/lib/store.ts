@@ -4,7 +4,7 @@ import { emptyLibrary, newDeck, now, uid, debounce, dayKey } from './util';
 import { GUEST_KEY, loadLibrary, putMediaBlob, saveLibrary } from './db';
 import { normalizeLibrary } from './merge';
 import { syncCardsForNote } from './cards';
-import { scheduleRating, reviewOnDate, emptySrs, deckDescendants } from './srs';
+import { scheduleRating, reviewOnDate, emptySrs, deckDescendants, moveDue, relearn } from './srs';
 import { newlyEarned, levelInfo, totalXp, todayReviews } from './gamify';
 import { emit } from './events';
 import { prepareImage } from './image';
@@ -242,6 +242,20 @@ export function updateCards(ids: string[], patch: (c: Card) => Partial<Card>) {
 
 export function resetCards(ids: string[]) {
   updateCards(ids, () => ({ srs: emptySrs(), suspended: false, buriedUntil: null }));
+}
+
+/** Study again: back into today's learning, as if forgotten. Not counted as a review. */
+export function relearnCards(ids: string[]) {
+  const t = now();
+  const ret = getLib().settings.retention;
+  updateCards(ids, (c) => ({ srs: relearn(c.srs, t, ret), suspended: false, buriedUntil: null }));
+}
+
+/** Study again on a chosen day. Not counted as a review. */
+export function moveCardsTo(ids: string[], dueAt: number) {
+  const t = now();
+  const ret = getLib().settings.retention;
+  updateCards(ids, (c) => ({ srs: moveDue(c.srs, dueAt, t, ret), suspended: false, buriedUntil: null }));
 }
 
 /** Rates a card. With `dueAt`, the learner chose the day it comes back (counted as Good). */

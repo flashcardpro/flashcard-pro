@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { clozeNumbers, renderCloze, ordsForNote, syncCardsForNote, faceFor, nextClozeNumber } from '../src/lib/cards';
-import { emptySrs, review, statusOf, buildQueue, preview, confidenceToRating, reviewOnDate, dueInDays, dueOnDate, scheduleRating, previewWith } from '../src/lib/srs';
+import { emptySrs, review, statusOf, buildQueue, preview, confidenceToRating, reviewOnDate, dueInDays, dueOnDate, scheduleRating, previewWith, moveDue, relearn } from '../src/lib/srs';
 import { mergeLibraries } from '../src/lib/merge';
 import { emptyLibrary, newDeck, gradeAnswer, dayKey, formatInterval } from '../src/lib/util';
 import { parseTermList, guessOptions, parseCsv } from '../src/lib/textImport';
@@ -109,6 +109,22 @@ describe('spaced repetition', () => {
     expect(p[1]).toBe(5 * 60_000);
     expect(p[3]).toBe(2 * 86_400_000);
     expect(p[4]).toBe(3 * 3_600_000);
+  });
+  it('study again: relearn today, or move to a chosen day', () => {
+    const t0 = new Date(2026, 10, 5, 21, 30).getTime();
+    const reviewed = review(review(emptySrs(t0), 3, t0), 3, t0 + 86_400_000);
+    const back = relearn(reviewed, t0 + 2 * 86_400_000);
+    expect(back.due).toBe(t0 + 2 * 86_400_000);
+    expect(back.state).toBe(3);
+    expect(back.lapses).toBe(reviewed.lapses + 1);
+    const fresh = relearn(emptySrs(t0), t0);
+    expect(fresh.state).toBe(1);
+    expect(fresh.stability).toBeGreaterThan(0);
+    const later = moveDue(reviewed, dueInDays(10, t0), t0);
+    expect(later.due).toBe(dueInDays(10, t0));
+    expect(later.state).toBe(2);
+    expect(later.stability).toBe(reviewed.stability);
+    expect(moveDue(emptySrs(t0), dueInDays(3, t0), t0).state).toBe(2);
   });
   it('maps confidence 1-5 to ratings', () => {
     expect([1, 2, 3, 4, 5].map((c) => confidenceToRating(c as 1))).toEqual([1, 2, 3, 3, 4]);
