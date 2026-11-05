@@ -93,7 +93,7 @@ export function HelpPage() {
           <li>{t('Go to console.cloud.google.com, create a project, and turn on the Google Drive API.')}</li>
           <li>{t('Under Google Auth Platform, set up the consent screen (External) and add the drive.file scope.')}</li>
           <li>{t('Create an OAuth client ID of type Web application. Add your site address (for example https://yourname.github.io) under Authorized JavaScript origins.')}</li>
-          <li>{t('For share links, turn on the Google Picker API too, then create an API key and restrict it to the Google Drive API, the Google Picker API and your site address.')}</li>
+          <li>{t('For share links, turn on the Google Picker API and the Google Sheets API too, then create an API key and restrict it to those two, the Google Drive API and your site address.')}</li>
           <li>{t('Put both values in public/config.js in the repository and push. The site rebuilds by itself.')}</li>
         </ol>
       </section>

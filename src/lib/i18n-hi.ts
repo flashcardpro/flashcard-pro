@@ -429,7 +429,7 @@ export const HI: Record<string, string> = {
   'Under Google Auth Platform, set up the consent screen (External) and add the drive.file scope.': 'Google Auth Platform में सहमति स्क्रीन (External) सेट करें और drive.file scope जोड़ें।',
   'Create an OAuth client ID of type Web application. Add your site address (for example https://yourname.github.io) under Authorized JavaScript origins.':
     'Web application प्रकार की OAuth client ID बनाएँ। Authorized JavaScript origins में अपनी साइट का पता डालें (जैसे https://yourname.github.io)।',
-  'For share links, turn on the Google Picker API too, then create an API key and restrict it to the Google Drive API, the Google Picker API and your site address.': 'शेयर लिंक के लिए Google Picker API भी चालू करें, फिर API key बनाएँ और उसे Google Drive API, Google Picker API और अपनी साइट के पते तक सीमित करें।',
+  'For share links, turn on the Google Picker API and the Google Sheets API too, then create an API key and restrict it to those two, the Google Drive API and your site address.': 'शेयर लिंक के लिए Google Picker API और Google Sheets API भी चालू करें, फिर API key बनाएँ और उसे इन दोनों, Google Drive API और अपनी साइट के पते तक सीमित करें।',
   'Put both values in public/config.js in the repository and push. The site rebuilds by itself.': 'दोनों मान repository की public/config.js में डालें और push करें। साइट अपने आप फिर से बन जाएगी।',
   '1 card': '1 कार्ड',
   'Study {n}': '{n} पढ़ें',

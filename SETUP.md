@@ -10,7 +10,7 @@ Your site address on GitHub Pages: `https://flashcardpro.github.io`
 
 1. Open https://console.cloud.google.com and sign in.
 2. Top bar, project picker, **New project**. Name it `Flashcard Pro`, then **Create**.
-3. Open **APIs and Services**, **Library**, search **Google Drive API**, click it, **Enable**. Do the same for **Google Picker API** (people who join a deck shared with "Can edit" pick its file once, so the app may save to it).
+3. Open **APIs and Services**, **Library**, search **Google Drive API**, click it, **Enable**. Do the same for **Google Picker API** (people who join a deck shared with "Can edit" pick its file once, so the app may save to it) and **Google Sheets API** (shared decks are kept in a Google Sheet, which anyone with the link can read).
 
 ## 2. Set up the consent screen
 
@@ -32,7 +32,7 @@ Your site address on GitHub Pages: `https://flashcardpro.github.io`
 1. **Credentials**, **Create credentials**, **API key**.
 2. **Edit API key**:
    - Application restrictions: **Websites**, add `https://flashcardpro.github.io/*`
-   - API restrictions: **Restrict key**, choose **Google Drive API** and **Google Picker API**
+   - API restrictions: **Restrict key**, choose **Google Drive API**, **Google Picker API** and **Google Sheets API**
 3. Save and copy the key.
 
 ## 5. Put the values in the site
